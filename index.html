@@ -51,6 +51,7 @@
 
         .field {
             margin-bottom: 16px;
+            position: relative;
         }
 
         label {
@@ -62,7 +63,95 @@
             letter-spacing: 0.3px;
         }
 
-        select, input {
+        /* Кастомный селект */
+        .custom-select {
+            position: relative;
+            width: 100%;
+        }
+
+        .select-button {
+            width: 100%;
+            padding: 16px 14px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 16px;
+            font-size: 16px;
+            color: #fff;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: inherit;
+        }
+
+        .select-button:focus {
+            outline: none;
+            border-color: #FFDD21;
+            box-shadow: 0 0 0 3px rgba(255, 221, 33, 0.2);
+        }
+
+        .select-button .arrow {
+            width: 16px;
+            height: 16px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23aaaaaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            transition: transform 0.2s;
+        }
+
+        .select-button.open .arrow {
+            transform: rotate(180deg);
+        }
+
+        .select-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+            display: none;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+        }
+
+        .select-dropdown.show {
+            display: block;
+        }
+
+        .select-option {
+            padding: 14px;
+            cursor: pointer;
+            color: #fff;
+            transition: background 0.1s;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .select-option:last-child {
+            border-bottom: none;
+        }
+
+        .select-option:hover {
+            background: #333;
+        }
+
+        .select-option.selected {
+            background: #36FF00;
+            color: #000;
+            font-weight: 500;
+        }
+
+        /* Скрытое нативное поле для хранения значения */
+        .native-select {
+            display: none;
+        }
+
+        input[type="number"] {
             width: 100%;
             padding: 16px 14px;
             background: #1a1a1a;
@@ -72,19 +161,10 @@
             color: #fff;
             outline: none;
             transition: all 0.2s ease;
-            appearance: none;
-            -webkit-appearance: none;
             font-family: inherit;
         }
 
-        select {
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23aaaaaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-            background-repeat: no-repeat;
-            background-position: right 14px center;
-            background-size: 16px;
-        }
-
-        select:focus, input:focus {
+        input[type="number"]:focus {
             border-color: #FFDD21;
             box-shadow: 0 0 0 3px rgba(255, 221, 33, 0.2);
         }
@@ -164,17 +244,27 @@
         </div>
         
         <div class="field">
-            <label for="typeSelect">Тип операции</label>
-            <select id="typeSelect" disabled>
-                <option value="">Загрузка типов...</option>
-            </select>
+            <label>Тип операции</label>
+            <div class="custom-select" id="typeSelectContainer">
+                <select id="typeSelect" class="native-select"></select>
+                <div class="select-button" id="typeSelectButton" tabindex="0" role="button" aria-haspopup="listbox">
+                    <span id="typeSelectedText">Загрузка...</span>
+                    <span class="arrow"></span>
+                </div>
+                <div class="select-dropdown" id="typeDropdown" role="listbox"></div>
+            </div>
         </div>
 
         <div class="field">
-            <label for="accountSelect">Счёт</label>
-            <select id="accountSelect" disabled>
-                <option value="">Сначала выберите тип</option>
-            </select>
+            <label>Счёт</label>
+            <div class="custom-select" id="accountSelectContainer">
+                <select id="accountSelect" class="native-select"></select>
+                <div class="select-button" id="accountSelectButton" tabindex="0" role="button" aria-haspopup="listbox" disabled>
+                    <span id="accountSelectedText">Сначала выберите тип</span>
+                    <span class="arrow"></span>
+                </div>
+                <div class="select-dropdown" id="accountDropdown" role="listbox"></div>
+            </div>
         </div>
 
         <div class="field">
@@ -187,18 +277,84 @@
         <div id="statusMessage" class="status"></div>
     </div>
 
+    <!-- Скрытый аудиоэлемент для звука клика -->
+    <audio id="clickSound" preload="auto" style="display: none;">
+        <source src="click.mp3" type="audio/mpeg">
+    </audio>
+
     <script>
-        // ⚠️ ВАШ URL СКРИПТА (замените, если нужно)
+        // ⚠️ ВАШ URL СКРИПТА
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';
 
+        // Элементы
         const typeSelect = document.getElementById('typeSelect');
         const accountSelect = document.getElementById('accountSelect');
         const amountInput = document.getElementById('amountInput');
         const saveBtn = document.getElementById('saveBtn');
         const statusDiv = document.getElementById('statusMessage');
 
-        let categoriesData = null;
+        // Элементы кастомных селектов
+        const typeButton = document.getElementById('typeSelectButton');
+        const accountButton = document.getElementById('accountSelectButton');
+        const typeDropdown = document.getElementById('typeDropdown');
+        const accountDropdown = document.getElementById('accountDropdown');
+        const typeSelectedText = document.getElementById('typeSelectedText');
+        const accountSelectedText = document.getElementById('accountSelectedText');
 
+        // Звук клика
+        const clickSound = document.getElementById('clickSound');
+
+        let categoriesData = null;
+        let activeDropdown = null; // для отслеживания открытого дропдауна
+
+        // Функции для кастомных селектов
+        function toggleDropdown(dropdown, button) {
+            if (dropdown.classList.contains('show')) {
+                closeAllDropdowns();
+            } else {
+                closeAllDropdowns();
+                dropdown.classList.add('show');
+                button.classList.add('open');
+                activeDropdown = { dropdown, button };
+            }
+        }
+
+        function closeAllDropdowns() {
+            if (activeDropdown) {
+                activeDropdown.dropdown.classList.remove('show');
+                activeDropdown.button.classList.remove('open');
+                activeDropdown = null;
+            }
+        }
+
+        function playClickSound() {
+            if (clickSound) {
+                clickSound.play().catch(e => console.log('Звук не воспроизвёлся:', e));
+            }
+        }
+
+        function populateDropdown(dropdown, options, selectedValue, onChange) {
+            dropdown.innerHTML = '';
+            options.forEach(option => {
+                const div = document.createElement('div');
+                div.className = 'select-option';
+                if (option === selectedValue) div.classList.add('selected');
+                div.textContent = option;
+                div.dataset.value = option;
+                div.addEventListener('click', () => {
+                    playClickSound(); // звук при выборе
+                    onChange(option);
+                    closeAllDropdowns();
+                });
+                dropdown.appendChild(div);
+            });
+        }
+
+        function updateSelectedText(element, value) {
+            element.textContent = value || 'Выберите...';
+        }
+
+        // Загрузка категорий (GET)
         async function loadCategories() {
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
@@ -207,43 +363,63 @@
                 
                 categoriesData = data;
                 const types = Object.keys(categoriesData);
-                typeSelect.innerHTML = '<option value="">Выберите тип</option>';
+                
+                // Заполняем нативные селекты (скрытые) и кастомные
+                typeSelect.innerHTML = '';
                 types.forEach(type => {
                     const option = document.createElement('option');
                     option.value = type;
                     option.textContent = type;
                     typeSelect.appendChild(option);
                 });
-                typeSelect.disabled = false;
+                
+                // Заполняем дропдаун типов
+                populateDropdown(typeDropdown, types, null, (value) => {
+                    typeSelect.value = value;
+                    typeSelectedText.textContent = value;
+                    // Активируем селект счетов
+                    enableAccountSelect();
+                    // Очищаем счёт
+                    accountSelect.value = '';
+                    accountSelectedText.textContent = 'Выберите счёт';
+                    accountDropdown.innerHTML = '';
+                    checkSaveButton();
+                });
+                
+                typeButton.disabled = false;
+                typeSelectedText.textContent = 'Выберите тип';
             } catch (error) {
                 console.error(error);
-                typeSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+                typeSelectedText.textContent = 'Ошибка загрузки';
                 statusDiv.textContent = 'Не удалось загрузить данные. Попробуйте позже.';
                 statusDiv.className = 'status error';
             }
         }
 
-        function onTypeChange() {
-            const selectedType = typeSelect.value;
-            if (!selectedType) {
-                accountSelect.innerHTML = '<option value="">Сначала выберите тип</option>';
-                accountSelect.disabled = true;
-                saveBtn.disabled = true;
-                return;
-            }
-            
-            const accounts = categoriesData[selectedType] || [];
-            accountSelect.innerHTML = '<option value="">Выберите счёт</option>';
-            accounts.forEach(account => {
-                const option = document.createElement('option');
-                option.value = account;
-                option.textContent = account;
-                accountSelect.appendChild(option);
-            });
-            accountSelect.disabled = false;
-            saveBtn.disabled = true;
+        function enableAccountSelect() {
+            accountButton.disabled = false;
+            accountSelectedText.textContent = 'Выберите счёт';
         }
 
+        function updateAccountOptions(type) {
+            const accounts = categoriesData[type] || [];
+            accountSelect.innerHTML = '';
+            accounts.forEach(acc => {
+                const option = document.createElement('option');
+                option.value = acc;
+                option.textContent = acc;
+                accountSelect.appendChild(option);
+            });
+            
+            populateDropdown(accountDropdown, accounts, null, (value) => {
+                accountSelect.value = value;
+                accountSelectedText.textContent = value;
+                checkSaveButton();
+                closeAllDropdowns();
+            });
+        }
+
+        // Проверка готовности к отправке
         function checkSaveButton() {
             const typeOk = typeSelect.value && typeSelect.value !== '';
             const accountOk = accountSelect.value && accountSelect.value !== '';
@@ -251,6 +427,7 @@
             saveBtn.disabled = !(typeOk && accountOk && amountOk);
         }
 
+        // Сохранение записи (POST)
         async function saveExpense(type, account, amount) {
             const formData = new URLSearchParams();
             formData.append('type', type);
@@ -267,11 +444,15 @@
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
                 
+                // Очистка
                 amountInput.value = '';
                 typeSelect.value = '';
-                accountSelect.innerHTML = '<option value="">Сначала выберите тип</option>';
-                accountSelect.disabled = true;
-                saveBtn.disabled = true;
+                accountSelect.value = '';
+                typeSelectedText.textContent = 'Выберите тип';
+                accountSelectedText.textContent = 'Сначала выберите тип';
+                accountButton.disabled = true;
+                accountDropdown.innerHTML = '';
+                checkSaveButton();
                 
                 if (window.Telegram && Telegram.WebApp) {
                     setTimeout(() => Telegram.WebApp.close(), 1000);
@@ -284,6 +465,37 @@
             }
         }
 
+        // Обработчики для кастомных селектов
+        typeButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeButton.disabled) return;
+            toggleDropdown(typeDropdown, typeButton);
+        });
+
+        accountButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (accountButton.disabled) return;
+            // Перед открытием обновляем список счетов согласно выбранному типу
+            const selectedType = typeSelect.value;
+            if (selectedType) {
+                updateAccountOptions(selectedType);
+            }
+            toggleDropdown(accountDropdown, accountButton);
+        });
+
+        // Закрытие дропдаунов при клике вне
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.custom-select')) {
+                closeAllDropdowns();
+            }
+        });
+
+        // Обработка клавиатуры (для доступности, можно добавить позже)
+
+        // Слушатели для поля суммы
+        amountInput.addEventListener('input', checkSaveButton);
+
+        // Сохранение по кнопке
         saveBtn.addEventListener('click', () => {
             const type = typeSelect.value;
             const account = accountSelect.value;
@@ -297,13 +509,7 @@
             saveExpense(type, account, amount);
         });
 
-        typeSelect.addEventListener('change', () => {
-            onTypeChange();
-            checkSaveButton();
-        });
-        accountSelect.addEventListener('change', checkSaveButton);
-        amountInput.addEventListener('input', checkSaveButton);
-
+        // Инициализация
         loadCategories();
 
         if (window.Telegram && Telegram.WebApp) {
