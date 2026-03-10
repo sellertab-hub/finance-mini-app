@@ -100,7 +100,6 @@
                 const response = await fetch(APPS_SCRIPT_URL);
                 const data = await response.json();
                 
-                // Если пришёл объект с ошибкой
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -153,7 +152,7 @@
             saveBtn.disabled = !(typeOk && accountOk && amountOk);
         }
 
-        // Сохранение записи (POST)
+        // Сохранение записи (POST) - исправленная версия с no-cors
         async function saveExpense(type, account, amount) {
             // Создаём данные в формате application/x-www-form-urlencoded
             const formData = new URLSearchParams();
@@ -162,36 +161,35 @@
             formData.append('amount', amount);
             
             try {
+                // Используем mode: 'no-cors' - это отключает проверку CORS
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    body: formData   // Content-Type выставится автоматически
+                    mode: 'no-cors',
+                    body: formData
                 });
                 
-                const result = await response.json();
+                // При no-cors мы не можем прочитать response,
+                // поэтому считаем, что успех, если нет ошибки сети
+                statusDiv.textContent = '✅ Запись отправлена!';
+                statusDiv.className = 'status success';
                 
-                if (result.success) {
-                    statusDiv.textContent = '✅ Запись добавлена!';
-                    statusDiv.className = 'status success';
-                    
-                    // Очищаем форму
-                    amountInput.value = '';
-                    typeSelect.value = '';
-                    accountSelect.innerHTML = '<option value="">Сначала выберите тип</option>';
-                    accountSelect.disabled = true;
-                    saveBtn.disabled = true;
-                    
-                    // Закрываем Mini App (если запущено в Telegram)
-                    if (window.Telegram && Telegram.WebApp) {
-                        Telegram.WebApp.close();
-                    }
-                } else {
-                    throw new Error(result.error || 'Ошибка сервера');
+                // Очищаем форму
+                amountInput.value = '';
+                typeSelect.value = '';
+                accountSelect.innerHTML = '<option value="">Сначала выберите тип</option>';
+                accountSelect.disabled = true;
+                saveBtn.disabled = true;
+                
+                // Закрываем Mini App через секунду
+                if (window.Telegram && Telegram.WebApp) {
+                    setTimeout(() => Telegram.WebApp.close(), 1000);
                 }
+                
             } catch (error) {
                 console.error('Ошибка сохранения:', error);
                 statusDiv.textContent = '❌ Ошибка при сохранении. Попробуйте ещё раз.';
                 statusDiv.className = 'status error';
-                saveBtn.disabled = false; // разблокируем кнопку для повторной попытки
+                saveBtn.disabled = false;
             }
         }
 
