@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финансы Mini App</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 16px;
+            margin: 0;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            text-align: center;
+            color: #333;
+        }
+        select, input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #0088cc;
+            color: white;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 12px;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            display: none;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>💰 Записать операцию</h2>
+        
+        <select id="typeSelect" disabled>
+            <option value="">Загрузка типов...</option>
+        </select>
+        
+        <select id="accountSelect" disabled>
+            <option value="">Сначала выберите тип</option>
+        </select>
+        
+        <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
+        
+        <button id="saveBtn" disabled>Сохранить</button>
+        
+        <div id="statusMessage" class="status"></div>
+    </div>
+
+    <script>
+        // !!! ЗДЕСЬ НУЖНО ВСТАВИТЬ ВАШ URL ИЗ ШАГА 2 !!!
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';  // ЗАМЕНИТЕ НА СВОЙ
+
+        const typeSelect = document.getElementById('typeSelect');
+        const accountSelect = document.getElementById('accountSelect');
+        const amountInput = document.getElementById('amountInput');
+        const saveBtn = document.getElementById('saveBtn');
+        const statusDiv = document.getElementById('statusMessage');
+
+        let categoriesData = null;
+
+        async function loadCategories() {
+            try {
+                const response = await fetch(APPS_SCRIPT_URL);
+                categoriesData = await response.json();
+                
+                const types = Object.keys(categoriesData);
+                typeSelect.innerHTML = '<option value="">Выберите тип</option>';
+                types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    typeSelect.appendChild(option);
+                });
+                
+                typeSelect.disabled = false;
+            } catch (error) {
+                console.error(error);
+                typeSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+                statusDiv.textContent = 'Не удалось загрузить данные. Попробуйте позже.';
+                statusDiv.className = 'status error';
+            }
+        }
+
+        function onTypeChange() {
+            const selectedType = typeSelect.value;
+            if (!selectedType) {
+                accountSelect.innerHTML = '<option value="">Сначала выберите тип</option>';
+                accountSelect.disabled = true;
+                saveBtn.disabled = true;
+                return;
+            }
+            
+            const accounts = categoriesData[selectedType] || [];
+            accountSelect.innerHTML = '<option value="">Выберите счёт</option>';
+            accounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account;
+                option.textContent = account;
+                accountSelect.appendChild(option);
+            });
+            accountSelect.disabled = false;
+            saveBtn.disabled = true;
+        }
+
+        function checkSaveButton() {
+            const typeOk = typeSelect.value && typeSelect.value !== '';
+            const accountOk = accountSelect.value && accountSelect.value !== '';
+            const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
+            saveBtn.disabled = !(typeOk && accountOk && amountOk);
+        }
+
+        async function saveExpense(type, account, amount) {
+            const payload = { type, account, amount };
+            
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    statusDiv.textContent = '✅ Запись добавлена!';
+                    statusDiv.className = 'status success';
+                    
+                    amountInput.value = '';
+                    typeSelect.value = '';
+                    accountSelect.innerHTML = '<option value="">Сначала выберите тип</option>';
+                    accountSelect.disabled = true;
+                    saveBtn.disabled = true;
+                    
+                    if (window.Telegram && Telegram.WebApp) {
+                        Telegram.WebApp.close();
+                    }
+                } else {
+                    throw new Error('Ошибка сервера');
+                }
+            } catch (error) {
+                console.error(error);
+                statusDiv.textContent = '❌ Ошибка при сохранении. Попробуйте ещё раз.';
+                statusDiv.className = 'status error';
+                saveBtn.disabled = false; // разблокируем, чтобы можно было повторить
+            }
+        }
+
+        saveBtn.addEventListener('click', () => {
+            const type = typeSelect.value;
+            const account = accountSelect.value;
+            const amount = parseFloat(amountInput.value);
+            
+            if (!type || !account || isNaN(amount) || amount <= 0) return;
+            
+            saveBtn.disabled = true;
+            statusDiv.textContent = 'Отправка...';
+            statusDiv.className = 'status';
+            
+            saveExpense(type, account, amount);
+        });
+
+        typeSelect.addEventListener('change', () => {
+            onTypeChange();
+            checkSaveButton();
+        });
+        
+        accountSelect.addEventListener('change', checkSaveButton);
+        amountInput.addEventListener('input', checkSaveButton);
+
+        loadCategories();
+
+        if (window.Telegram && Telegram.WebApp) {
+            Telegram.WebApp.ready();
+        }
+    </script>
+</body>
+</html>
