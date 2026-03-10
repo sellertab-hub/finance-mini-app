@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Finance Mini App</title>
     <style>
+        /* Все стили остаются без изменений */
         * {
             margin: 0;
             padding: 0;
@@ -63,7 +64,6 @@
             letter-spacing: 0.3px;
         }
 
-        /* Кастомный селект */
         .custom-select {
             position: relative;
             width: 100%;
@@ -146,7 +146,6 @@
             font-weight: 500;
         }
 
-        /* Скрытое нативное поле для хранения значения */
         .native-select {
             display: none;
         }
@@ -277,14 +276,18 @@
         <div id="statusMessage" class="status"></div>
     </div>
 
-    <!-- Скрытый аудиоэлемент для звука клика -->
-    <audio id="clickSound" preload="auto" style="display: none;">
-        <source src="click.mp3" type="audio/mpeg">
-    </audio>
-
     <script>
         // ⚠️ ВАШ URL СКРИПТА
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';
+
+        // Инициализация звуков (предполагаем, что файлы лежат рядом с index.html)
+        const click1 = new Audio('click1.mp3');
+        const click2 = new Audio('click2.mp3');
+
+        // Функция для безопасного воспроизведения (не ломается, если файл не загружен)
+        function playSound(sound) {
+            sound.play().catch(e => console.log('Аудио не воспроизведено (возможно, файл отсутствует)', e));
+        }
 
         // Элементы
         const typeSelect = document.getElementById('typeSelect');
@@ -300,9 +303,6 @@
         const accountDropdown = document.getElementById('accountDropdown');
         const typeSelectedText = document.getElementById('typeSelectedText');
         const accountSelectedText = document.getElementById('accountSelectedText');
-
-        // Звук клика
-        const clickSound = document.getElementById('clickSound');
 
         let categoriesData = null;
         let activeDropdown = null; // для отслеживания открытого дропдауна
@@ -327,12 +327,6 @@
             }
         }
 
-        function playClickSound() {
-            if (clickSound) {
-                clickSound.play().catch(e => console.log('Звук не воспроизвёлся:', e));
-            }
-        }
-
         function populateDropdown(dropdown, options, selectedValue, onChange) {
             dropdown.innerHTML = '';
             options.forEach(option => {
@@ -342,7 +336,8 @@
                 div.textContent = option;
                 div.dataset.value = option;
                 div.addEventListener('click', () => {
-                    playClickSound(); // звук при выборе
+                    // Воспроизводим click2 при выборе опции
+                    playSound(click2);
                     onChange(option);
                     closeAllDropdowns();
                 });
@@ -441,6 +436,9 @@
                     body: formData
                 });
                 
+                // Воспроизводим click1 при успешном сохранении
+                playSound(click1);
+                
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
                 
@@ -490,10 +488,11 @@
             }
         });
 
-        // Обработка клавиатуры (для доступности, можно добавить позже)
-
-        // Слушатели для поля суммы
-        amountInput.addEventListener('input', checkSaveButton);
+        // Слушатели для поля суммы — воспроизводим click2 при каждом изменении (вводе)
+        amountInput.addEventListener('input', () => {
+            playSound(click2);
+            checkSaveButton();
+        });
 
         // Сохранение по кнопке
         saveBtn.addEventListener('click', () => {
