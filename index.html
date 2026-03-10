@@ -83,8 +83,8 @@
     </div>
 
     <script>
-        // !!! ЗДЕСЬ НУЖНО ВСТАВИТЬ ВАШ URL ИЗ ШАГА 2 !!!
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';  // ЗАМЕНИТЕ НА СВОЙ
+        // ⚠️ ВАЖНО: замените на URL вашего опубликованного скрипта!
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';
 
         const typeSelect = document.getElementById('typeSelect');
         const accountSelect = document.getElementById('accountSelect');
@@ -94,11 +94,18 @@
 
         let categoriesData = null;
 
+        // Загрузка категорий (GET)
         async function loadCategories() {
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
-                categoriesData = await response.json();
+                const data = await response.json();
                 
+                // Если пришёл объект с ошибкой
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                categoriesData = data;
                 const types = Object.keys(categoriesData);
                 typeSelect.innerHTML = '<option value="">Выберите тип</option>';
                 types.forEach(type => {
@@ -107,16 +114,16 @@
                     option.textContent = type;
                     typeSelect.appendChild(option);
                 });
-                
                 typeSelect.disabled = false;
             } catch (error) {
-                console.error(error);
+                console.error('Ошибка загрузки:', error);
                 typeSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
                 statusDiv.textContent = 'Не удалось загрузить данные. Попробуйте позже.';
                 statusDiv.className = 'status error';
             }
         }
 
+        // Обработка смены типа
         function onTypeChange() {
             const selectedType = typeSelect.value;
             if (!selectedType) {
@@ -138,6 +145,7 @@
             saveBtn.disabled = true;
         }
 
+        // Проверка готовности к отправке
         function checkSaveButton() {
             const typeOk = typeSelect.value && typeSelect.value !== '';
             const accountOk = accountSelect.value && accountSelect.value !== '';
@@ -145,15 +153,18 @@
             saveBtn.disabled = !(typeOk && accountOk && amountOk);
         }
 
+        // Сохранение записи (POST)
         async function saveExpense(type, account, amount) {
-            const payload = { type, account, amount };
+            // Создаём данные в формате application/x-www-form-urlencoded
+            const formData = new URLSearchParams();
+            formData.append('type', type);
+            formData.append('account', account);
+            formData.append('amount', amount);
             
             try {
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: formData   // Content-Type выставится автоматически
                 });
                 
                 const result = await response.json();
@@ -162,26 +173,29 @@
                     statusDiv.textContent = '✅ Запись добавлена!';
                     statusDiv.className = 'status success';
                     
+                    // Очищаем форму
                     amountInput.value = '';
                     typeSelect.value = '';
                     accountSelect.innerHTML = '<option value="">Сначала выберите тип</option>';
                     accountSelect.disabled = true;
                     saveBtn.disabled = true;
                     
+                    // Закрываем Mini App (если запущено в Telegram)
                     if (window.Telegram && Telegram.WebApp) {
                         Telegram.WebApp.close();
                     }
                 } else {
-                    throw new Error('Ошибка сервера');
+                    throw new Error(result.error || 'Ошибка сервера');
                 }
             } catch (error) {
-                console.error(error);
+                console.error('Ошибка сохранения:', error);
                 statusDiv.textContent = '❌ Ошибка при сохранении. Попробуйте ещё раз.';
                 statusDiv.className = 'status error';
-                saveBtn.disabled = false; // разблокируем, чтобы можно было повторить
+                saveBtn.disabled = false; // разблокируем кнопку для повторной попытки
             }
         }
 
+        // Обработчик кнопки "Сохранить"
         saveBtn.addEventListener('click', () => {
             const type = typeSelect.value;
             const account = accountSelect.value;
@@ -196,6 +210,7 @@
             saveExpense(type, account, amount);
         });
 
+        // Слушатели изменений
         typeSelect.addEventListener('change', () => {
             onTypeChange();
             checkSaveButton();
@@ -204,12 +219,13 @@
         accountSelect.addEventListener('change', checkSaveButton);
         amountInput.addEventListener('input', checkSaveButton);
 
+        // Загружаем категории при старте
         loadCategories();
 
+        // Интеграция с Telegram Web App
         if (window.Telegram && Telegram.WebApp) {
             Telegram.WebApp.ready();
         }
     </script>
 </body>
-
 </html>
