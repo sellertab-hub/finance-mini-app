@@ -167,6 +167,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: 0.2s;
+        }
+        .filter-button.active {
+            border-color: #36FF00;
+            color: #36FF00;
         }
         .filter-button .arrow {
             width: 14px;
@@ -937,9 +942,8 @@
                     // Закрываем More фильтры, если они открыты
                     historyMoreFilters.classList.remove('show');
                     historyMoreBtn.classList.remove('active');
-                    // Сбрасываем тексты
-                    historyMonthText.textContent = 'Month';
-                    historyYearText.textContent = 'Year';
+                    // Сбрасываем тексты и подсветку Month/Year
+                    resetMonthYear('history');
                     loadHistory();
                 });
             });
@@ -952,8 +956,7 @@
                     setActivePeriod(summaryPeriodBtns, period);
                     summaryMoreFilters.classList.remove('show');
                     summaryMoreBtn.classList.remove('active');
-                    summaryMonthText.textContent = 'Month';
-                    summaryYearText.textContent = 'Year';
+                    resetMonthYear('summary');
                     loadSummary();
                     loadChartData();
                 });
@@ -964,13 +967,9 @@
                 e.stopPropagation();
                 const isActive = historyMoreFilters.classList.contains('show');
                 if (isActive) {
-                    // Закрываем и сбрасываем на all
-                    historyMoreFilters.classList.remove('show');
-                    historyMoreBtn.classList.remove('active');
-                    historyMonthText.textContent = 'Month';
-                    historyYearText.textContent = 'Year';
+                    // Повторный клик: сбрасываем фильтры, но панель остаётся открытой
+                    resetMonthYear('history');
                     currentFilterHistory = { period: 'all' };
-                    setActivePeriod(historyPeriodBtns, null);
                     loadHistory();
                 } else {
                     // Открываем панель, показываем все записи
@@ -986,12 +985,8 @@
                 e.stopPropagation();
                 const isActive = summaryMoreFilters.classList.contains('show');
                 if (isActive) {
-                    summaryMoreFilters.classList.remove('show');
-                    summaryMoreBtn.classList.remove('active');
-                    summaryMonthText.textContent = 'Month';
-                    summaryYearText.textContent = 'Year';
+                    resetMonthYear('summary');
                     currentFilterSummary = { period: 'all' };
-                    setActivePeriod(summaryPeriodBtns, null);
                     loadSummary();
                     loadChartData();
                 } else {
@@ -1005,25 +1000,43 @@
             });
         }
 
+        function resetMonthYear(target) {
+            if (target === 'history') {
+                historyMonthText.textContent = 'Month';
+                historyYearText.textContent = 'Year';
+                historyMonthButton.classList.remove('active');
+                historyYearButton.classList.remove('active');
+            } else {
+                summaryMonthText.textContent = 'Month';
+                summaryYearText.textContent = 'Year';
+                summaryMonthButton.classList.remove('active');
+                summaryYearButton.classList.remove('active');
+            }
+        }
+
         // ===== ФИЛЬТРЫ МЕСЯЦ/ГОД =====
         function attachFilterListeners() {
             // Month dropdowns
             setupFilterDropdown(historyMonthButton, historyMonthDropdown, allMonths, historyMonthText, (value) => {
                 historyMonthText.textContent = formatMonth(value);
+                historyMonthButton.classList.add('active');
                 applyHistoryFilter();
             });
             setupFilterDropdown(summaryMonthButton, summaryMonthDropdown, allMonths, summaryMonthText, (value) => {
                 summaryMonthText.textContent = formatMonth(value);
+                summaryMonthButton.classList.add('active');
                 applySummaryFilter();
             });
 
             // Year dropdowns
             setupFilterDropdown(historyYearButton, historyYearDropdown, allYears, historyYearText, (value) => {
                 historyYearText.textContent = value;
+                historyYearButton.classList.add('active');
                 applyHistoryFilter();
             });
             setupFilterDropdown(summaryYearButton, summaryYearDropdown, allYears, summaryYearText, (value) => {
                 summaryYearText.textContent = value;
+                summaryYearButton.classList.add('active');
                 applySummaryFilter();
             });
         }
@@ -1069,7 +1082,7 @@
             } else if (month) {
                 currentFilterHistory = { period: 'month', month: month };
             } else {
-                currentFilterHistory = { period: 'all' }; // если ничего не выбрано, показываем всё
+                currentFilterHistory = { period: 'all' };
             }
             loadHistory();
         }
