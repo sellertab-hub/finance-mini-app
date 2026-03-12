@@ -7,6 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* Все стили без изменений (идентичны предыдущим) */
         * {
             margin: 0;
             padding: 0;
@@ -527,7 +528,7 @@
                 <div class="period-selector" id="historyPeriod">
                     <button class="period-btn" data-period="today">Today</button>
                     <button class="period-btn" data-period="week">Week</button>
-                    <button class="period-btn" data-period="month" id="historyMonthBtn">Month</button>
+                    <button class="period-btn" id="historyMonthBtn">Month</button>
                     <button class="period-btn" data-period="all">All</button>
                 </div>
                 <div class="month-dropdown" id="historyMonthDropdown"></div>
@@ -540,7 +541,7 @@
                 <div class="period-selector" id="summaryPeriod">
                     <button class="period-btn" data-period="today">Today</button>
                     <button class="period-btn" data-period="week">Week</button>
-                    <button class="period-btn" data-period="month" id="summaryMonthBtn">Month</button>
+                    <button class="period-btn" id="summaryMonthBtn">Month</button>
                     <button class="period-btn" data-period="all">All</button>
                 </div>
                 <div class="month-dropdown" id="summaryMonthDropdown"></div>
@@ -587,7 +588,7 @@
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
-        let currentFilterHistory = { period: 'today' };
+        let currentFilterHistory = { period: 'today' }; // period может быть 'today', 'week', 'all', или объект с month
         let currentFilterSummary = { period: 'today' };
         let activeDropdown = null;
         let currentArticleSign = 'plus';
@@ -681,7 +682,7 @@
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
-            await loadMonths(); // загружаем месяцы первыми
+            await loadMonths();
             await loadCategories();
             attachNavigationListeners();
             attachPeriodListeners();
@@ -689,6 +690,7 @@
             attachModalListeners();
             attachTabListeners();
 
+            // Устанавливаем активную кнопку Today
             setActivePeriod(historyPeriodBtns, 'today');
             setActivePeriod(summaryPeriodBtns, 'today');
             loadHistory();
@@ -700,6 +702,8 @@
 
         function setActivePeriod(btns, period) {
             btns.forEach(btn => {
+                // Для кнопки Month не используем активное состояние через period
+                if (btn.id && btn.id.includes('MonthBtn')) return;
                 if (btn.dataset.period === period) {
                     btn.classList.add('active');
                 } else {
@@ -733,57 +737,43 @@
 
         // ===== ФИЛЬТРЫ =====
         function attachPeriodListeners() {
+            // Кнопки Today, Week, All
             historyPeriodBtns.forEach(btn => {
+                if (btn.id && btn.id.includes('MonthBtn')) return;
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
-                    if (period === 'month') {
-                        if (currentFilterHistory.period === 'month') {
-                            openMonthDropdown('history');
-                        } else {
-                            currentFilterHistory = { period: 'month', month: getCurrentMonth() };
-                            updateMonthButton(historyMonthBtn, currentFilterHistory.month);
-                            setActivePeriod(historyPeriodBtns, 'month');
-                            loadHistory();
-                        }
-                    } else {
-                        currentFilterHistory = { period };
-                        setActivePeriod(historyPeriodBtns, period);
-                        loadHistory();
-                    }
+                    currentFilterHistory = { period };
+                    setActivePeriod(historyPeriodBtns, period);
+                    loadHistory();
                 });
             });
 
             summaryPeriodBtns.forEach(btn => {
+                if (btn.id && btn.id.includes('MonthBtn')) return;
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
-                    if (period === 'month') {
-                        if (currentFilterSummary.period === 'month') {
-                            openMonthDropdown('summary');
-                        } else {
-                            currentFilterSummary = { period: 'month', month: getCurrentMonth() };
-                            updateMonthButton(summaryMonthBtn, currentFilterSummary.month);
-                            setActivePeriod(summaryPeriodBtns, 'month');
-                            loadSummary();
-                            loadChartData();
-                        }
-                    } else {
-                        currentFilterSummary = { period };
-                        setActivePeriod(summaryPeriodBtns, period);
-                        loadSummary();
-                        loadChartData();
-                    }
+                    currentFilterSummary = { period };
+                    setActivePeriod(summaryPeriodBtns, period);
+                    loadSummary();
+                    loadChartData();
                 });
             });
-        }
 
-        function updateMonthButton(btn, month) {
-            btn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
+            // Кнопки Month (открывают дропдаун)
+            historyMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openMonthDropdown('history');
+            });
+
+            summaryMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openMonthDropdown('summary');
+            });
         }
 
         function openMonthDropdown(target) {
             console.log('openMonthDropdown', target, allMonths);
             const dropdown = target === 'history' ? historyMonthDropdown : summaryMonthDropdown;
-            const currentMonth = target === 'history' ? currentFilterHistory.month : currentFilterSummary.month;
             
             // Закрываем все другие дропдауны
             document.querySelectorAll('.month-dropdown').forEach(d => d.classList.remove('show'));
@@ -795,15 +785,20 @@
                 const div = document.createElement('div');
                 div.className = 'month-option';
                 div.textContent = formatMonth(m);
+                // Можно подсветить текущий месяц, если он уже выбран
+                const currentMonth = target === 'history' ? currentFilterHistory.month : currentFilterSummary.month;
                 if (m === currentMonth) div.classList.add('selected');
                 div.addEventListener('click', () => {
                     if (target === 'history') {
-                        currentFilterHistory.month = m;
-                        updateMonthButton(historyMonthBtn, m);
+                        currentFilterHistory = { period: 'month', month: m };
+                        // Убираем активный класс с других кнопок
+                        setActivePeriod(historyPeriodBtns, null);
+                        historyMonthBtn.classList.add('active'); // можно добавить активный класс на Month
                         loadHistory();
                     } else {
-                        currentFilterSummary.month = m;
-                        updateMonthButton(summaryMonthBtn, m);
+                        currentFilterSummary = { period: 'month', month: m };
+                        setActivePeriod(summaryPeriodBtns, null);
+                        summaryMonthBtn.classList.add('active');
                         loadSummary();
                         loadChartData();
                     }
@@ -1189,7 +1184,6 @@
                 currentArticleSign = 'plus';
                 checkSaveButton();
                 
-                // После сохранения обновляем данные
                 loadHistory();
                 loadSummary();
                 loadChartData();
