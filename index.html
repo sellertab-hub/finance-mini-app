@@ -124,7 +124,7 @@
             color: #36FF00;
         }
 
-        /* ===== КАСТОМНЫЕ СЕЛЕКТЫ (без изменений) ===== */
+        /* ===== КАСТОМНЫЕ СЕЛЕКТЫ ===== */
         .custom-select {
             position: relative;
             width: 100%;
@@ -193,7 +193,7 @@
             display: none;
         }
 
-        /* ===== ПОЛЯ ВВОДА (СУММА И КОММЕНТАРИЙ) – ЕДИНЫЙ СТИЛЬ ===== */
+        /* ===== ПОЛЯ ВВОДА (СУММА И КОММЕНТАРИЙ) ===== */
         input[type="number"], textarea {
             width: 100%;
             padding: 16px 14px;
@@ -261,7 +261,7 @@
             border-color: #ff4646;
         }
 
-        /* ===== ЭЛЕМЕНТЫ ИСТОРИИ И ИТОГОВ (без изменений) ===== */
+        /* ===== ЭЛЕМЕНТЫ ИСТОРИИ И ИТОГОВ ===== */
         .transaction-item {
             background: #1a1a1a;
             border-radius: 16px;
@@ -400,7 +400,7 @@
                     </div>
                     <div class="select-dropdown" id="articleDropdown"></div>
                 </div>
-                <!-- Сумма (теперь как поле ввода, стилизована единообразно) -->
+                <!-- Сумма -->
                 <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
                 <!-- Комментарий -->
                 <textarea id="commentInput" placeholder="Комментарий (необязательно)"></textarea>
@@ -642,7 +642,7 @@
             summaryContentDiv.innerHTML = html;
         }
 
-        // ===== ЛОГИКА КАСТОМНЫХ СЕЛЕКТОВ (для экрана ввода) =====
+        // ===== ЛОГИКА КАСТОМНЫХ СЕЛЕКТОВ =====
         function populateTypeDropdown() {
             const types = Object.keys(categoriesData);
             typeSelect.innerHTML = '';
@@ -685,7 +685,15 @@
             const type = typeSelect.value;
             if (!type) return;
             const accounts = Object.keys(categoriesData[type] || {});
+            
             accountSelect.innerHTML = '';
+            accounts.forEach(acc => {
+                const option = document.createElement('option');
+                option.value = acc;
+                option.textContent = acc;
+                accountSelect.appendChild(option);
+            });
+            
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
@@ -712,8 +720,19 @@
             const type = typeSelect.value;
             const account = accountSelect.value;
             if (!type || !account) return;
+            
             const articles = categoriesData[type][account] || [];
+            
+            // Заполняем скрытый нативный select
             articleSelect.innerHTML = '';
+            articles.forEach(art => {
+                const option = document.createElement('option');
+                option.value = art;
+                option.textContent = art;
+                articleSelect.appendChild(option);
+            });
+            
+            // Заполняем кастомный дропдаун
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value;
                 articleSelectedText.textContent = value;
