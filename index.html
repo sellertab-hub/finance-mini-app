@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Finance Mini App</title>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         /* ===== БАЗОВЫЕ СТИЛИ ===== */
         * {
@@ -193,7 +195,7 @@
             display: none;
         }
 
-        /* ===== ПОЛЯ ВВОДА (СУММА И КОММЕНТАРИЙ) ===== */
+        /* ===== ПОЛЯ ВВОДА ===== */
         input[type="number"], textarea {
             width: 100%;
             padding: 16px 14px;
@@ -261,13 +263,20 @@
             border-color: #ff4646;
         }
 
-        /* ===== ЭЛЕМЕНТЫ ИСТОРИИ И ИТОГОВ ===== */
+        /* ===== ЭЛЕМЕНТЫ ИСТОРИИ ===== */
         .transaction-item {
             background: #1a1a1a;
             border-radius: 16px;
             padding: 12px;
             margin-bottom: 8px;
             border: 1px solid #333;
+            cursor: pointer;
+            transition: background 0.2s;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .transaction-item:active {
+            background: #2a2a2a;
         }
         .transaction-main {
             display: flex;
@@ -309,6 +318,8 @@
             margin-top: 4px;
             text-align: right;
         }
+
+        /* ===== ИТОГИ (ТАБЛИЦА) ===== */
         .summary-block {
             margin-bottom: 20px;
         }
@@ -353,6 +364,95 @@
             color: #36FF00;
             font-weight: 500;
         }
+
+        /* ===== ВКЛАДКИ НА SUM ===== */
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background: transparent;
+            border: 2px solid #444;
+            color: #aaa;
+            border-radius: 40px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .tab.active {
+            border-color: #36FF00;
+            color: #36FF00;
+        }
+
+        /* ===== ГРАФИКИ ===== */
+        .chart-container {
+            margin: 16px 0;
+            height: 250px;
+            position: relative;
+        }
+
+        /* ===== МОДАЛЬНОЕ ОКНО ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: #0c0c0c;
+            border: 2px solid #36FF00;
+            border-radius: 28px;
+            padding: 20px;
+            width: 90%;
+            max-width: 380px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #36FF00;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 40px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn.delete {
+            background: #ff4646;
+            color: #fff;
+        }
+        .modal-btn.cancel {
+            background: #444;
+            color: #fff;
+        }
+        .modal-btn.edit {
+            background: #36FF00;
+            color: #000;
+        }
     </style>
 </head>
 <body>
@@ -362,7 +462,7 @@
             <img src="logo.png" alt="Finance Logo" class="logo-image">
         </div>
 
-        <!-- Сегментированный контроль (ADD / FLOW / SUM) -->
+        <!-- Сегментированный контроль -->
         <div class="segmented-control">
             <button class="segmented-btn active" data-screen="0">ADD</button>
             <button class="segmented-btn" data-screen="1">FLOW</button>
@@ -371,9 +471,8 @@
 
         <!-- Контейнер экранов -->
         <div class="screens-container" id="screensContainer">
-            <!-- Экран 1: Ввод (ADD) -->
+            <!-- Экран 1: ADD -->
             <div class="screen" id="screen0">
-                <!-- Тип -->
                 <div class="custom-select" id="typeSelectContainer">
                     <select id="typeSelect" class="native-select"></select>
                     <div class="select-button" id="typeSelectButton">
@@ -382,7 +481,6 @@
                     </div>
                     <div class="select-dropdown" id="typeDropdown"></div>
                 </div>
-                <!-- Счёт -->
                 <div class="custom-select" id="accountSelectContainer">
                     <select id="accountSelect" class="native-select"></select>
                     <div class="select-button" id="accountSelectButton" disabled>
@@ -391,7 +489,6 @@
                     </div>
                     <div class="select-dropdown" id="accountDropdown"></div>
                 </div>
-                <!-- Статья -->
                 <div class="custom-select" id="articleSelectContainer">
                     <select id="articleSelect" class="native-select"></select>
                     <div class="select-button" id="articleSelectButton" disabled>
@@ -400,16 +497,13 @@
                     </div>
                     <div class="select-dropdown" id="articleDropdown"></div>
                 </div>
-                <!-- Сумма -->
                 <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
-                <!-- Комментарий -->
                 <textarea id="commentInput" placeholder="Комментарий (необязательно)"></textarea>
-                <!-- Кнопка сохранения -->
                 <button id="saveBtn" disabled>Сохранить</button>
                 <div id="statusMessage" class="status"></div>
             </div>
 
-            <!-- Экран 2: История (FLOW) -->
+            <!-- Экран 2: FLOW -->
             <div class="screen" id="screen1">
                 <div class="period-selector" id="historyPeriod">
                     <button class="period-btn active" data-period="today">Сегодня</button>
@@ -421,7 +515,7 @@
                 <div id="historyStatus" style="text-align: center; padding: 20px; color: #aaa;"></div>
             </div>
 
-            <!-- Экран 3: Итоги (SUM) -->
+            <!-- Экран 3: SUM -->
             <div class="screen" id="screen2">
                 <div class="period-selector" id="summaryPeriod">
                     <button class="period-btn active" data-period="today">Сегодня</button>
@@ -429,17 +523,48 @@
                     <button class="period-btn" data-period="month">Месяц</button>
                     <button class="period-btn" data-period="all">Всё</button>
                 </div>
-                <div id="summaryContent"></div>
+                <div class="tab-bar" id="summaryTabs">
+                    <button class="tab active" data-tab="table">Таблица</button>
+                    <button class="tab" data-tab="charts">Графики</button>
+                </div>
+                <div id="summaryTable" style="display: block;"></div>
+                <div id="summaryCharts" style="display: none;">
+                    <div class="chart-container">
+                        <canvas id="chartTypes"></canvas>
+                    </div>
+                    <div id="chartDetail" style="margin-top: 16px; color: #aaa; text-align: center;">Нажмите на сегмент для детализации</div>
+                </div>
                 <div id="summaryStatus" style="text-align: center; padding: 20px; color: #aaa;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для редактирования/удаления -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-title" id="modalTitle">Редактирование</div>
+            <div id="editForm">
+                <div style="margin-bottom: 16px; color:#aaa;">
+                    <div id="editDisplayType" style="margin-bottom:8px;"></div>
+                    <div id="editDisplayAccount" style="margin-bottom:8px;"></div>
+                    <div id="editDisplayArticle" style="margin-bottom:8px;"></div>
+                </div>
+                <input type="number" id="editAmount" placeholder="Сумма" min="0" step="0.01" />
+                <textarea id="editComment" placeholder="Комментарий"></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn delete" id="deleteBtn">Удалить</button>
+                <button class="modal-btn cancel" id="cancelBtn">Отмена</button>
+                <button class="modal-btn edit" id="updateBtn">Сохранить</button>
             </div>
         </div>
     </div>
 
     <script>
         // ===== НАСТРОЙКИ =====
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ваш URL
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ НА ВАШ URL
 
-        // Звуки (если есть)
+        // Звуки
         const click1 = new Audio('click1.mp3');
         const click2 = new Audio('click2.mp3');
         function playSound(sound) {
@@ -451,8 +576,13 @@
         let currentPeriodHistory = 'today';
         let currentPeriodSummary = 'today';
         let activeDropdown = null;
+        let currentArticleSign = 'plus';
+        let chartInstances = {};
+        let currentSummaryData = null;
+        let currentEditRow = null;
+        let currentEditSign = 'plus';
 
-        // ===== ЭЛЕМЕНТЫ ЭКРАНА ВВОДА =====
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА ADD =====
         const typeSelect = document.getElementById('typeSelect');
         const accountSelect = document.getElementById('accountSelect');
         const articleSelect = document.getElementById('articleSelect');
@@ -471,13 +601,33 @@
         const accountSelectedText = document.getElementById('accountSelectedText');
         const articleSelectedText = document.getElementById('articleSelectedText');
 
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА FLOW =====
+        const historyListDiv = document.getElementById('historyList');
+        const historyStatus = document.getElementById('historyStatus');
+
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА SUM =====
+        const summaryContentDiv = document.getElementById('summaryTable');
+        const summaryChartsDiv = document.getElementById('summaryCharts');
+        const summaryStatus = document.getElementById('summaryStatus');
+        const summaryTabs = document.querySelectorAll('#summaryTabs .tab');
+        const chartCanvas = document.getElementById('chartTypes');
+        const chartDetailDiv = document.getElementById('chartDetail');
+
+        // ===== ЭЛЕМЕНТЫ МОДАЛЬНОГО ОКНА =====
+        const modal = document.getElementById('editModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const editAmount = document.getElementById('editAmount');
+        const editComment = document.getElementById('editComment');
+        const editDisplayType = document.getElementById('editDisplayType');
+        const editDisplayAccount = document.getElementById('editDisplayAccount');
+        const editDisplayArticle = document.getElementById('editDisplayArticle');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const updateBtn = document.getElementById('updateBtn');
+
         // ===== ЭЛЕМЕНТЫ НАВИГАЦИИ =====
         const screensContainer = document.getElementById('screensContainer');
         const segButtons = document.querySelectorAll('.segmented-btn');
-        const historyListDiv = document.getElementById('historyList');
-        const historyStatus = document.getElementById('historyStatus');
-        const summaryContentDiv = document.getElementById('summaryContent');
-        const summaryStatus = document.getElementById('summaryStatus');
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         function init() {
@@ -485,14 +635,17 @@
             attachNavigationListeners();
             attachPeriodListeners();
             attachSelectListeners();
+            attachModalListeners();
+            attachTabListeners();
 
             loadHistory('today');
             loadSummary('today');
+            loadChartData('today');
 
             screensContainer.addEventListener('scroll', syncSegmentedButtons);
         }
 
-        // ===== НАВИГАЦИЯ ПО ЭКРАНАМ =====
+        // ===== НАВИГАЦИЯ =====
         function attachNavigationListeners() {
             segButtons.forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -515,7 +668,7 @@
             });
         }
 
-        // ===== ПЕРИОДЫ ДЛЯ ИСТОРИИ И ИТОГОВ =====
+        // ===== ПЕРИОДЫ =====
         function attachPeriodListeners() {
             document.querySelectorAll('#historyPeriod .period-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -531,11 +684,31 @@
                     btn.classList.add('active');
                     currentPeriodSummary = btn.dataset.period;
                     loadSummary(currentPeriodSummary);
+                    loadChartData(currentPeriodSummary);
                 });
             });
         }
 
-        // ===== ЗАГРУЗКА ДАННЫХ С СЕРВЕРА =====
+        // ===== ВКЛАДКИ НА SUM =====
+        function attachTabListeners() {
+            summaryTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    summaryTabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    const tabName = tab.dataset.tab;
+                    if (tabName === 'table') {
+                        document.getElementById('summaryTable').style.display = 'block';
+                        document.getElementById('summaryCharts').style.display = 'none';
+                    } else {
+                        document.getElementById('summaryTable').style.display = 'none';
+                        document.getElementById('summaryCharts').style.display = 'block';
+                        if (currentSummaryData) renderCharts(currentSummaryData);
+                    }
+                });
+            });
+        }
+
+        // ===== ЗАГРУЗКА ДАННЫХ =====
         async function loadCategories() {
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
@@ -577,6 +750,21 @@
             }
         }
 
+        async function loadChartData(period) {
+            try {
+                const url = `${APPS_SCRIPT_URL}?action=chart&period=${period}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                currentSummaryData = data;
+                if (document.getElementById('summaryCharts').style.display === 'block') {
+                    renderCharts(data);
+                }
+            } catch (e) {
+                console.error('Chart error', e);
+            }
+        }
+
         // ===== ОТОБРАЖЕНИЕ ИСТОРИИ =====
         function renderHistory(records) {
             historyStatus.textContent = '';
@@ -587,8 +775,10 @@
             records.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
             records.forEach(rec => {
                 const date = new Date(rec.timestamp).toLocaleString('ru', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+                const amountColor = rec.amount < 0 ? '#ff4646' : '#36FF00';
                 const item = document.createElement('div');
                 item.className = 'transaction-item';
+                item.dataset.row = rec.row;
                 item.innerHTML = `
                     <div class="transaction-main">
                         <div class="transaction-left">
@@ -596,16 +786,30 @@
                             <span class="transaction-account">${rec.account}</span>
                             <span class="transaction-article">${rec.article}</span>
                         </div>
-                        <div class="transaction-amount">${rec.amount.toFixed(2)}</div>
+                        <div class="transaction-amount" style="color: ${amountColor}">${rec.amount.toFixed(2)}</div>
                     </div>
                     ${rec.comment ? `<div class="transaction-comment">💬 ${rec.comment}</div>` : ''}
                     <div class="transaction-date">${date}</div>
                 `;
+                // Долгое нажатие
+                let pressTimer;
+                item.addEventListener('touchstart', (e) => {
+                    pressTimer = setTimeout(() => {
+                        openEditModal(rec);
+                    }, 500);
+                });
+                item.addEventListener('touchend', () => clearTimeout(pressTimer));
+                item.addEventListener('touchmove', () => clearTimeout(pressTimer));
+                // Для мышки (контекстное меню)
+                item.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    openEditModal(rec);
+                });
                 historyListDiv.appendChild(item);
             });
         }
 
-        // ===== ОТОБРАЖЕНИЕ ИТОГОВ =====
+        // ===== ОТОБРАЖЕНИЕ ИТОГОВ (ТАБЛИЦА) =====
         function renderSummary(summary) {
             summaryStatus.textContent = '';
             if (Object.keys(summary).length === 0) {
@@ -622,19 +826,22 @@
                     for (let article in summary[type][account]) {
                         let amount = summary[type][account][article];
                         accountTotal += amount;
-                        articlesHtml += `<div class="summary-article"><span>${article}</span><span class="summary-article-amount">${amount.toFixed(2)}</span></div>`;
+                        const amountColor = amount < 0 ? '#ff4646' : '#36FF00';
+                        articlesHtml += `<div class="summary-article"><span>${article}</span><span class="summary-article-amount" style="color: ${amountColor}">${amount.toFixed(2)}</span></div>`;
                     }
                     typeTotal += accountTotal;
+                    const accountTotalColor = accountTotal < 0 ? '#ff4646' : '#FFDD21';
                     accountsHtml += `
                         <div class="summary-account">
-                            <div class="summary-account-header"><span>${account}</span><span>${accountTotal.toFixed(2)}</span></div>
+                            <div class="summary-account-header"><span>${account}</span><span style="color: ${accountTotalColor}">${accountTotal.toFixed(2)}</span></div>
                             ${articlesHtml}
                         </div>
                     `;
                 }
+                const typeTotalColor = typeTotal < 0 ? '#ff4646' : '#36FF00';
                 html += `
                     <div class="summary-block">
-                        <div class="summary-type"><span>${type}</span><span class="summary-type-total">${typeTotal.toFixed(2)}</span></div>
+                        <div class="summary-type"><span>${type}</span><span class="summary-type-total" style="color: ${typeTotalColor}">${typeTotal.toFixed(2)}</span></div>
                         ${accountsHtml}
                     </div>
                 `;
@@ -642,7 +849,55 @@
             summaryContentDiv.innerHTML = html;
         }
 
-        // ===== ЛОГИКА КАСТОМНЫХ СЕЛЕКТОВ =====
+        // ===== ГРАФИКИ =====
+        function renderCharts(data) {
+            if (chartInstances.types) chartInstances.types.destroy();
+            
+            const typesData = {};
+            for (let [type, val] of Object.entries(data.types)) {
+                if (Math.abs(val) > 0.01) typesData[type] = val;
+            }
+            
+            const ctx = chartCanvas.getContext('2d');
+            chartInstances.types = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(typesData),
+                    datasets: [{
+                        data: Object.values(typesData),
+                        backgroundColor: ['#36FF00', '#FFDD21', '#4069FF', '#ff4646', '#aa80ff', '#ffaa80'],
+                        borderColor: '#000',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#fff' } }
+                    },
+                    onClick: (event, item) => {
+                        if (item.length > 0) {
+                            const index = item[0].dataIndex;
+                            const type = Object.keys(typesData)[index];
+                            showChartDetail(type, data);
+                        }
+                    }
+                }
+            });
+        }
+
+        function showChartDetail(type, data) {
+            let html = `<div style="color:#36FF00; font-weight:600; margin-bottom:8px;">${type}</div>`;
+            for (let [account, val] of Object.entries(data.accounts)) {
+                if (Math.abs(val) > 0.01) {
+                    html += `<div style="display:flex; justify-content:space-between; padding:4px 0;"><span>${account}</span><span style="color:${val<0?'#ff4646':'#36FF00'}">${val.toFixed(2)}</span></div>`;
+                }
+            }
+            chartDetailDiv.innerHTML = html;
+        }
+
+        // ===== ЛОГИКА КАСТОМНЫХ СЕЛЕКТОВ (ADD) =====
         function populateTypeDropdown() {
             const types = Object.keys(categoriesData);
             typeSelect.innerHTML = '';
@@ -674,6 +929,7 @@
             articleSelectedText.textContent = 'Сначала выберите счёт';
             articleButton.disabled = true;
             articleDropdown.innerHTML = '';
+            currentArticleSign = 'plus';
         }
 
         function enableAccountSelect() {
@@ -702,169 +958,4 @@
                 checkSaveButton();
                 playSound(click2);
             });
-        }
-
-        function resetArticle() {
-            articleSelect.value = '';
-            articleSelectedText.textContent = 'Сначала выберите счёт';
-            articleButton.disabled = true;
-            articleDropdown.innerHTML = '';
-        }
-
-        function enableArticleSelect() {
-            articleButton.disabled = false;
-            articleSelectedText.textContent = 'Выберите статью';
-        }
-
-        function updateArticleOptions() {
-            const type = typeSelect.value;
-            const account = accountSelect.value;
-            if (!type || !account) return;
-            
-            const articles = categoriesData[type][account] || [];
-            
-            // Заполняем скрытый нативный select
-            articleSelect.innerHTML = '';
-            articles.forEach(art => {
-                const option = document.createElement('option');
-                option.value = art;
-                option.textContent = art;
-                articleSelect.appendChild(option);
-            });
-            
-            // Заполняем кастомный дропдаун
-            populateDropdown(articleDropdown, articles, null, (value) => {
-                articleSelect.value = value;
-                articleSelectedText.textContent = value;
-                checkSaveButton();
-                playSound(click2);
-            });
-        }
-
-        function populateDropdown(dropdown, items, selected, onChange) {
-            dropdown.innerHTML = '';
-            items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'select-option';
-                if (item === selected) div.classList.add('selected');
-                div.textContent = item;
-                div.addEventListener('click', () => onChange(item));
-                dropdown.appendChild(div);
-            });
-        }
-
-        // ===== ОБЩИЕ ФУНКЦИИ ДЛЯ ДРОПДАУНОВ =====
-        function toggleDropdown(dropdown, button) {
-            if (dropdown.classList.contains('show')) {
-                closeAllDropdowns();
-            } else {
-                closeAllDropdowns();
-                dropdown.classList.add('show');
-                button.classList.add('open');
-                activeDropdown = { dropdown, button };
-            }
-        }
-
-        function closeAllDropdowns() {
-            if (activeDropdown) {
-                activeDropdown.dropdown.classList.remove('show');
-                activeDropdown.button.classList.remove('open');
-                activeDropdown = null;
-            }
-        }
-
-        // ===== ПРОВЕРКА КНОПКИ СОХРАНЕНИЯ =====
-        function checkSaveButton() {
-            const typeOk = typeSelect.value && typeSelect.value !== '';
-            const accountOk = accountSelect.value && accountSelect.value !== '';
-            const articleOk = articleSelect.value && articleSelect.value !== '';
-            const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
-            saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
-        }
-
-        // ===== СОХРАНЕНИЕ ЗАПИСИ =====
-        async function saveExpense(type, account, article, amount, comment) {
-            const formData = new URLSearchParams();
-            formData.append('type', type);
-            formData.append('account', account);
-            formData.append('article', article);
-            formData.append('amount', amount);
-            formData.append('comment', comment);
-            try {
-                await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
-                playSound(click1);
-                statusDiv.textContent = '✅ Запись отправлена!';
-                statusDiv.className = 'status success';
-                // Очистка
-                amountInput.value = '';
-                commentInput.value = '';
-                typeSelect.value = '';
-                accountSelect.value = '';
-                articleSelect.value = '';
-                typeSelectedText.textContent = 'Выберите тип';
-                accountSelectedText.textContent = 'Сначала выберите тип';
-                articleSelectedText.textContent = 'Сначала выберите счёт';
-                accountButton.disabled = true;
-                articleButton.disabled = true;
-                accountDropdown.innerHTML = '';
-                articleDropdown.innerHTML = '';
-                checkSaveButton();
-                // Обновляем историю и итоги
-                loadHistory(currentPeriodHistory);
-                loadSummary(currentPeriodSummary);
-                if (window.Telegram?.WebApp) setTimeout(() => Telegram.WebApp.close(), 1000);
-            } catch (e) {
-                statusDiv.textContent = '❌ Ошибка при сохранении';
-                statusDiv.className = 'status error';
-                saveBtn.disabled = false;
-            }
-        }
-
-        // ===== ПРИВЯЗКА СОБЫТИЙ =====
-        function attachSelectListeners() {
-            typeButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (typeButton.disabled) return;
-                toggleDropdown(typeDropdown, typeButton);
-            });
-            accountButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (accountButton.disabled) return;
-                updateAccountOptions();
-                toggleDropdown(accountDropdown, accountButton);
-            });
-            articleButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (articleButton.disabled) return;
-                updateArticleOptions();
-                toggleDropdown(articleDropdown, articleButton);
-            });
-            document.addEventListener('click', closeAllDropdowns);
-
-            amountInput.addEventListener('input', () => {
-                playSound(click2);
-                checkSaveButton();
-            });
-            commentInput.addEventListener('input', () => playSound(click2));
-
-            saveBtn.addEventListener('click', () => {
-                const type = typeSelect.value;
-                const account = accountSelect.value;
-                const article = articleSelect.value;
-                const amount = parseFloat(amountInput.value);
-                const comment = commentInput.value;
-                if (!type || !account || !article || isNaN(amount) || amount <= 0) return;
-                saveBtn.disabled = true;
-                statusDiv.textContent = 'Отправка...';
-                statusDiv.className = 'status';
-                saveExpense(type, account, article, amount, comment);
-            });
-        }
-
-        // ===== СТАРТ =====
-        init();
-
-        if (window.Telegram?.WebApp) Telegram.WebApp.ready();
-    </script>
-</body>
-</html>
+       
