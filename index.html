@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Finance Mini App</title>
     <style>
-        /* Все стили остаются без изменений */
+        /* Все стили остаются точно такими же, как были */
         * {
             margin: 0;
             padding: 0;
@@ -242,6 +242,7 @@
             <img src="logo.png" alt="Finance Logo" class="logo-image">
         </div>
         
+        <!-- Тип операции -->
         <div class="field">
             <label>Тип операции</label>
             <div class="custom-select" id="typeSelectContainer">
@@ -254,6 +255,7 @@
             </div>
         </div>
 
+        <!-- Счёт (второй уровень) -->
         <div class="field">
             <label>Счёт</label>
             <div class="custom-select" id="accountSelectContainer">
@@ -263,6 +265,19 @@
                     <span class="arrow"></span>
                 </div>
                 <div class="select-dropdown" id="accountDropdown" role="listbox"></div>
+            </div>
+        </div>
+
+        <!-- Статья (третий уровень) -->
+        <div class="field">
+            <label>Статья</label>
+            <div class="custom-select" id="articleSelectContainer">
+                <select id="articleSelect" class="native-select"></select>
+                <div class="select-button" id="articleSelectButton" tabindex="0" role="button" aria-haspopup="listbox" disabled>
+                    <span id="articleSelectedText">Сначала выберите счёт</span>
+                    <span class="arrow"></span>
+                </div>
+                <div class="select-dropdown" id="articleDropdown" role="listbox"></div>
             </div>
         </div>
 
@@ -277,37 +292,39 @@
     </div>
 
     <script>
-        // ⚠️ ВАШ URL СКРИПТА
+        // ⚠️ ВАШ URL СКРИПТА (после обновления скрипта он остаётся тем же)
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';
 
-        // Инициализация звуков (предполагаем, что файлы лежат рядом с index.html)
+        // Звуки
         const click1 = new Audio('click1.mp3');
         const click2 = new Audio('click2.mp3');
-
-        // Функция для безопасного воспроизведения (не ломается, если файл не загружен)
         function playSound(sound) {
-            sound.play().catch(e => console.log('Аудио не воспроизведено (возможно, файл отсутствует)', e));
+            sound.play().catch(e => console.log('Аудио не воспроизведено', e));
         }
 
         // Элементы
         const typeSelect = document.getElementById('typeSelect');
         const accountSelect = document.getElementById('accountSelect');
+        const articleSelect = document.getElementById('articleSelect');
         const amountInput = document.getElementById('amountInput');
         const saveBtn = document.getElementById('saveBtn');
         const statusDiv = document.getElementById('statusMessage');
 
-        // Элементы кастомных селектов
+        // Кнопки и дропдауны
         const typeButton = document.getElementById('typeSelectButton');
         const accountButton = document.getElementById('accountSelectButton');
+        const articleButton = document.getElementById('articleSelectButton');
         const typeDropdown = document.getElementById('typeDropdown');
         const accountDropdown = document.getElementById('accountDropdown');
+        const articleDropdown = document.getElementById('articleDropdown');
         const typeSelectedText = document.getElementById('typeSelectedText');
         const accountSelectedText = document.getElementById('accountSelectedText');
+        const articleSelectedText = document.getElementById('articleSelectedText');
 
-        let categoriesData = null;
-        let activeDropdown = null; // для отслеживания открытого дропдауна
+        let categoriesData = null; // будет { Тип: { Счёт: [статьи] } }
+        let activeDropdown = null;
 
-        // Функции для кастомных селектов
+        // ---- Общие функции для кастомных селектов ----
         function toggleDropdown(dropdown, button) {
             if (dropdown.classList.contains('show')) {
                 closeAllDropdowns();
@@ -336,7 +353,6 @@
                 div.textContent = option;
                 div.dataset.value = option;
                 div.addEventListener('click', () => {
-                    // Воспроизводим click2 при выборе опции
                     playSound(click2);
                     onChange(option);
                     closeAllDropdowns();
@@ -345,11 +361,7 @@
             });
         }
 
-        function updateSelectedText(element, value) {
-            element.textContent = value || 'Выберите...';
-        }
-
-        // Загрузка категорий (GET)
+        // ---- Загрузка данных с сервера ----
         async function loadCategories() {
             try {
                 const response = await fetch(APPS_SCRIPT_URL);
@@ -359,7 +371,7 @@
                 categoriesData = data;
                 const types = Object.keys(categoriesData);
                 
-                // Заполняем нативные селекты (скрытые) и кастомные
+                // Заполняем тип
                 typeSelect.innerHTML = '';
                 types.forEach(type => {
                     const option = document.createElement('option');
@@ -368,16 +380,13 @@
                     typeSelect.appendChild(option);
                 });
                 
-                // Заполняем дропдаун типов
                 populateDropdown(typeDropdown, types, null, (value) => {
                     typeSelect.value = value;
                     typeSelectedText.textContent = value;
-                    // Активируем селект счетов
+                    // Сброс зависимых селектов
+                    resetAccountAndArticle();
+                    // Активируем счёт
                     enableAccountSelect();
-                    // Очищаем счёт
-                    accountSelect.value = '';
-                    accountSelectedText.textContent = 'Выберите счёт';
-                    accountDropdown.innerHTML = '';
                     checkSaveButton();
                 });
                 
@@ -391,13 +400,30 @@
             }
         }
 
+        function resetAccountAndArticle() {
+            // Очищаем и деактивируем счёт
+            accountSelect.value = '';
+            accountSelectedText.textContent = 'Сначала выберите тип';
+            accountButton.disabled = true;
+            accountDropdown.innerHTML = '';
+            // Очищаем и деактивируем статью
+            articleSelect.value = '';
+            articleSelectedText.textContent = 'Сначала выберите счёт';
+            articleButton.disabled = true;
+            articleDropdown.innerHTML = '';
+        }
+
         function enableAccountSelect() {
             accountButton.disabled = false;
             accountSelectedText.textContent = 'Выберите счёт';
         }
 
-        function updateAccountOptions(type) {
-            const accounts = categoriesData[type] || [];
+        // Обновление списка счетов при выборе типа
+        function updateAccountOptions() {
+            const selectedType = typeSelect.value;
+            if (!selectedType) return;
+            
+            const accounts = Object.keys(categoriesData[selectedType] || {});
             accountSelect.innerHTML = '';
             accounts.forEach(acc => {
                 const option = document.createElement('option');
@@ -409,8 +435,44 @@
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
+                // Сброс статьи и активация
+                resetArticle();
+                enableArticleSelect();
                 checkSaveButton();
-                closeAllDropdowns();
+            });
+        }
+
+        function resetArticle() {
+            articleSelect.value = '';
+            articleSelectedText.textContent = 'Сначала выберите счёт';
+            articleButton.disabled = true;
+            articleDropdown.innerHTML = '';
+        }
+
+        function enableArticleSelect() {
+            articleButton.disabled = false;
+            articleSelectedText.textContent = 'Выберите статью';
+        }
+
+        // Обновление списка статей при выборе счёта
+        function updateArticleOptions() {
+            const selectedType = typeSelect.value;
+            const selectedAccount = accountSelect.value;
+            if (!selectedType || !selectedAccount) return;
+            
+            const articles = categoriesData[selectedType][selectedAccount] || [];
+            articleSelect.innerHTML = '';
+            articles.forEach(art => {
+                const option = document.createElement('option');
+                option.value = art;
+                option.textContent = art;
+                articleSelect.appendChild(option);
+            });
+            
+            populateDropdown(articleDropdown, articles, null, (value) => {
+                articleSelect.value = value;
+                articleSelectedText.textContent = value;
+                checkSaveButton();
             });
         }
 
@@ -418,15 +480,17 @@
         function checkSaveButton() {
             const typeOk = typeSelect.value && typeSelect.value !== '';
             const accountOk = accountSelect.value && accountSelect.value !== '';
+            const articleOk = articleSelect.value && articleSelect.value !== '';
             const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
-            saveBtn.disabled = !(typeOk && accountOk && amountOk);
+            saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
         }
 
-        // Сохранение записи (POST)
-        async function saveExpense(type, account, amount) {
+        // Сохранение записи
+        async function saveExpense(type, account, article, amount) {
             const formData = new URLSearchParams();
             formData.append('type', type);
             formData.append('account', account);
+            formData.append('article', article);
             formData.append('amount', amount);
             
             try {
@@ -436,9 +500,7 @@
                     body: formData
                 });
                 
-                // Воспроизводим click1 при успешном сохранении
                 playSound(click1);
-                
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
                 
@@ -446,10 +508,14 @@
                 amountInput.value = '';
                 typeSelect.value = '';
                 accountSelect.value = '';
+                articleSelect.value = '';
                 typeSelectedText.textContent = 'Выберите тип';
                 accountSelectedText.textContent = 'Сначала выберите тип';
+                articleSelectedText.textContent = 'Сначала выберите счёт';
                 accountButton.disabled = true;
+                articleButton.disabled = true;
                 accountDropdown.innerHTML = '';
+                articleDropdown.innerHTML = '';
                 checkSaveButton();
                 
                 if (window.Telegram && Telegram.WebApp) {
@@ -463,7 +529,7 @@
             }
         }
 
-        // Обработчики для кастомных селектов
+        // ---- Обработчики событий ----
         typeButton.addEventListener('click', (e) => {
             e.stopPropagation();
             if (typeButton.disabled) return;
@@ -473,39 +539,42 @@
         accountButton.addEventListener('click', (e) => {
             e.stopPropagation();
             if (accountButton.disabled) return;
-            // Перед открытием обновляем список счетов согласно выбранному типу
-            const selectedType = typeSelect.value;
-            if (selectedType) {
-                updateAccountOptions(selectedType);
-            }
+            // Перед открытием обновляем список счетов
+            updateAccountOptions();
             toggleDropdown(accountDropdown, accountButton);
         });
 
-        // Закрытие дропдаунов при клике вне
+        articleButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (articleButton.disabled) return;
+            // Перед открытием обновляем список статей
+            updateArticleOptions();
+            toggleDropdown(articleDropdown, articleButton);
+        });
+
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.custom-select')) {
                 closeAllDropdowns();
             }
         });
 
-        // Слушатели для поля суммы — воспроизводим click2 при каждом изменении (вводе)
         amountInput.addEventListener('input', () => {
             playSound(click2);
             checkSaveButton();
         });
 
-        // Сохранение по кнопке
         saveBtn.addEventListener('click', () => {
             const type = typeSelect.value;
             const account = accountSelect.value;
+            const article = articleSelect.value;
             const amount = parseFloat(amountInput.value);
-            if (!type || !account || isNaN(amount) || amount <= 0) return;
+            if (!type || !account || !article || isNaN(amount) || amount <= 0) return;
             
             saveBtn.disabled = true;
             statusDiv.textContent = 'Отправка...';
             statusDiv.className = 'status';
             
-            saveExpense(type, account, amount);
+            saveExpense(type, account, article, amount);
         });
 
         // Инициализация
