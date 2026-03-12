@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Finance Mini App</title>
     <style>
-        /* ===== БАЗОВЫЕ СТИЛИ (как были, с небольшими дополнениями) ===== */
+        /* ===== БАЗОВЫЕ СТИЛИ ===== */
         * {
             margin: 0;
             padding: 0;
@@ -25,7 +25,6 @@
             overflow: hidden;
         }
 
-        /* Контейнер для трёх экранов (горизонтальный скролл со snap) */
         .app-container {
             width: 100%;
             max-width: 420px;
@@ -40,7 +39,6 @@
             position: relative;
         }
 
-        /* Логотип (теперь сверху внутри контейнера) */
         .logo-area {
             display: flex;
             align-items: center;
@@ -53,35 +51,33 @@
             filter: drop-shadow(0 0 8px #36FF00);
         }
 
-        /* Сегментированный контроль (три кнопки) */
+        /* ===== СЕГМЕНТИРОВАННЫЙ КОНТРОЛЬ (ADD / FLOW / SUM) ===== */
         .segmented-control {
             display: flex;
             padding: 8px 12px;
-            gap: 6px;
-            background: #1a1a1a;
-            border-radius: 30px;
+            gap: 8px;
             margin: 8px 16px;
         }
         .segmented-btn {
             flex: 1;
             padding: 8px 0;
             text-align: center;
-            font-size: 14px;
-            font-weight: 500;
-            color: #aaa;
+            font-size: 16px;
+            font-weight: 600;
             background: transparent;
-            border: none;
-            border-radius: 20px;
+            border: 2px solid #444;
+            color: #aaa;
+            border-radius: 40px;
             transition: all 0.2s;
             cursor: pointer;
+            letter-spacing: 0.5px;
         }
         .segmented-btn.active {
-            background: #36FF00;
-            color: #000;
-            font-weight: 600;
+            border-color: #36FF00;
+            color: #36FF00;
         }
 
-        /* Контейнер экранов (горизонтальный скролл) */
+        /* ===== КОНТЕЙНЕР ЭКРАНОВ ===== */
         .screens-container {
             flex: 1;
             display: flex;
@@ -89,13 +85,12 @@
             scroll-snap-type: x mandatory;
             -webkit-overflow-scrolling: touch;
             scroll-behavior: smooth;
-            scrollbar-width: none; /* Firefox */
-            -ms-overflow-style: none; /* IE/Edge */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
         .screens-container::-webkit-scrollbar {
-            display: none; /* Chrome/Safari */
+            display: none;
         }
-
         .screen {
             flex: 0 0 100%;
             scroll-snap-align: start;
@@ -104,148 +99,32 @@
             height: 100%;
         }
 
-        /* Период-селектор для экранов истории и итогов */
+        /* ===== ФИЛЬТРЫ (ПЕРИОДЫ) – ОБВОДКА ===== */
         .period-selector {
             display: flex;
             gap: 8px;
             margin-bottom: 16px;
-            background: #1a1a1a;
-            padding: 6px;
-            border-radius: 40px;
+            background: transparent;
+            padding: 4px 0;
         }
         .period-btn {
             flex: 1;
             padding: 8px 0;
             background: transparent;
-            border: none;
+            border: 2px solid #444;
             color: #aaa;
             font-size: 14px;
-            border-radius: 30px;
+            font-weight: 500;
+            border-radius: 40px;
             cursor: pointer;
             transition: 0.2s;
         }
         .period-btn.active {
-            background: #36FF00;
-            color: #000;
-            font-weight: 500;
-        }
-
-        /* Карточка транзакции для списка */
-        .transaction-item {
-            background: #1a1a1a;
-            border-radius: 16px;
-            padding: 12px;
-            margin-bottom: 8px;
-            border: 1px solid #333;
-        }
-        .transaction-main {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-        }
-        .transaction-left {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px 10px;
-            font-size: 15px;
-        }
-        .transaction-type {
+            border-color: #36FF00;
             color: #36FF00;
-            font-weight: 500;
-        }
-        .transaction-account {
-            color: #FFDD21;
-        }
-        .transaction-article {
-            color: #4069FF;
-        }
-        .transaction-amount {
-            font-weight: 600;
-            font-size: 16px;
-        }
-        .transaction-comment {
-            color: #aaa;
-            font-size: 13px;
-            margin-top: 4px;
-            padding-top: 4px;
-            border-top: 1px dashed #333;
-            word-break: break-word;
-        }
-        .transaction-date {
-            color: #888;
-            font-size: 12px;
-            margin-top: 4px;
-            text-align: right;
         }
 
-        /* Итоги по категориям (древовидная структура) */
-        .summary-block {
-            margin-bottom: 20px;
-        }
-        .summary-type {
-            background: #222;
-            padding: 12px 16px;
-            border-radius: 30px;
-            margin-bottom: 8px;
-            font-size: 18px;
-            font-weight: 600;
-            color: #36FF00;
-            display: flex;
-            justify-content: space-between;
-        }
-        .summary-type-total {
-            color: #fff;
-        }
-        .summary-account {
-            margin-left: 16px;
-            margin-bottom: 6px;
-        }
-        .summary-account-header {
-            background: #1a1a1a;
-            padding: 8px 14px;
-            border-radius: 20px;
-            margin-bottom: 4px;
-            font-size: 16px;
-            color: #FFDD21;
-            display: flex;
-            justify-content: space-between;
-        }
-        .summary-article {
-            margin-left: 32px;
-            padding: 6px 12px;
-            display: flex;
-            justify-content: space-between;
-            color: #fff;
-            border-bottom: 1px solid #2a2a2a;
-            font-size: 14px;
-        }
-        .summary-article-amount {
-            color: #36FF00;
-            font-weight: 500;
-        }
-
-        /* Поле комментария */
-        textarea {
-            width: 100%;
-            padding: 14px;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 16px;
-            font-size: 16px;
-            color: #fff;
-            outline: none;
-            resize: vertical;
-            min-height: 60px;
-            font-family: inherit;
-            margin-bottom: 8px;
-        }
-        textarea:focus {
-            border-color: #FFDD21;
-            box-shadow: 0 0 0 3px rgba(255, 221, 33, 0.2);
-        }
-
-        /* Кастомные селекты (те же, что и раньше) */
+        /* ===== КАСТОМНЫЕ СЕЛЕКТЫ (без изменений) ===== */
         .custom-select {
             position: relative;
             width: 100%;
@@ -314,6 +193,30 @@
             display: none;
         }
 
+        /* ===== ПОЛЯ ВВОДА (СУММА И КОММЕНТАРИЙ) – ЕДИНЫЙ СТИЛЬ ===== */
+        input[type="number"], textarea {
+            width: 100%;
+            padding: 16px 14px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 16px;
+            font-size: 16px;
+            color: #fff;
+            outline: none;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            margin-bottom: 12px;
+        }
+        input[type="number"]:focus, textarea:focus {
+            border-color: #FFDD21;
+            box-shadow: 0 0 0 3px rgba(255, 221, 33, 0.2);
+        }
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        /* ===== КНОПКА СОХРАНЕНИЯ ===== */
         button {
             width: 100%;
             padding: 18px;
@@ -334,6 +237,8 @@
             box-shadow: none;
             cursor: not-allowed;
         }
+
+        /* ===== СТАТУС СООБЩЕНИЙ ===== */
         .status {
             margin-top: 12px;
             padding: 12px;
@@ -355,6 +260,99 @@
             color: #ff4646;
             border-color: #ff4646;
         }
+
+        /* ===== ЭЛЕМЕНТЫ ИСТОРИИ И ИТОГОВ (без изменений) ===== */
+        .transaction-item {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid #333;
+        }
+        .transaction-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .transaction-left {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 10px;
+            font-size: 15px;
+        }
+        .transaction-type {
+            color: #36FF00;
+            font-weight: 500;
+        }
+        .transaction-account {
+            color: #FFDD21;
+        }
+        .transaction-article {
+            color: #4069FF;
+        }
+        .transaction-amount {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .transaction-comment {
+            color: #aaa;
+            font-size: 13px;
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px dashed #333;
+            word-break: break-word;
+        }
+        .transaction-date {
+            color: #888;
+            font-size: 12px;
+            margin-top: 4px;
+            text-align: right;
+        }
+        .summary-block {
+            margin-bottom: 20px;
+        }
+        .summary-type {
+            background: #222;
+            padding: 12px 16px;
+            border-radius: 30px;
+            margin-bottom: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #36FF00;
+            display: flex;
+            justify-content: space-between;
+        }
+        .summary-type-total {
+            color: #fff;
+        }
+        .summary-account {
+            margin-left: 16px;
+            margin-bottom: 6px;
+        }
+        .summary-account-header {
+            background: #1a1a1a;
+            padding: 8px 14px;
+            border-radius: 20px;
+            margin-bottom: 4px;
+            font-size: 16px;
+            color: #FFDD21;
+            display: flex;
+            justify-content: space-between;
+        }
+        .summary-article {
+            margin-left: 32px;
+            padding: 6px 12px;
+            display: flex;
+            justify-content: space-between;
+            color: #fff;
+            border-bottom: 1px solid #2a2a2a;
+            font-size: 14px;
+        }
+        .summary-article-amount {
+            color: #36FF00;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -364,16 +362,16 @@
             <img src="logo.png" alt="Finance Logo" class="logo-image">
         </div>
 
-        <!-- Сегментированный контроль -->
+        <!-- Сегментированный контроль (ADD / FLOW / SUM) -->
         <div class="segmented-control">
-            <button class="segmented-btn active" data-screen="0">💰 Ввод</button>
-            <button class="segmented-btn" data-screen="1">📋 История</button>
-            <button class="segmented-btn" data-screen="2">📊 Итоги</button>
+            <button class="segmented-btn active" data-screen="0">ADD</button>
+            <button class="segmented-btn" data-screen="1">FLOW</button>
+            <button class="segmented-btn" data-screen="2">SUM</button>
         </div>
 
         <!-- Контейнер экранов -->
         <div class="screens-container" id="screensContainer">
-            <!-- Экран 1: Ввод (Input) -->
+            <!-- Экран 1: Ввод (ADD) -->
             <div class="screen" id="screen0">
                 <!-- Тип -->
                 <div class="custom-select" id="typeSelectContainer">
@@ -402,16 +400,16 @@
                     </div>
                     <div class="select-dropdown" id="articleDropdown"></div>
                 </div>
+                <!-- Сумма (теперь как поле ввода, стилизована единообразно) -->
+                <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
                 <!-- Комментарий -->
                 <textarea id="commentInput" placeholder="Комментарий (необязательно)"></textarea>
-                <!-- Сумма -->
-                <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
-                <!-- Кнопка -->
+                <!-- Кнопка сохранения -->
                 <button id="saveBtn" disabled>Сохранить</button>
                 <div id="statusMessage" class="status"></div>
             </div>
 
-            <!-- Экран 2: История (List) -->
+            <!-- Экран 2: История (FLOW) -->
             <div class="screen" id="screen1">
                 <div class="period-selector" id="historyPeriod">
                     <button class="period-btn active" data-period="today">Сегодня</button>
@@ -423,7 +421,7 @@
                 <div id="historyStatus" style="text-align: center; padding: 20px; color: #aaa;"></div>
             </div>
 
-            <!-- Экран 3: Итоги (Summary) -->
+            <!-- Экран 3: Итоги (SUM) -->
             <div class="screen" id="screen2">
                 <div class="period-selector" id="summaryPeriod">
                     <button class="period-btn active" data-period="today">Сегодня</button>
@@ -449,7 +447,7 @@
         }
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-        let categoriesData = null;          // для экрана ввода
+        let categoriesData = null;
         let currentPeriodHistory = 'today';
         let currentPeriodSummary = 'today';
         let activeDropdown = null;
@@ -483,16 +481,14 @@
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         function init() {
-            loadCategories(); // загружаем категории для экрана ввода
+            loadCategories();
             attachNavigationListeners();
             attachPeriodListeners();
             attachSelectListeners();
 
-            // При первом открытии загружаем историю и итоги (по умолчанию today)
             loadHistory('today');
             loadSummary('today');
 
-            // Слушаем скролл для синхронизации кнопок
             screensContainer.addEventListener('scroll', syncSegmentedButtons);
         }
 
@@ -794,7 +790,7 @@
                 accountDropdown.innerHTML = '';
                 articleDropdown.innerHTML = '';
                 checkSaveButton();
-                // Обновим историю и итоги (если они на текущем периоде)
+                // Обновляем историю и итоги
                 loadHistory(currentPeriodHistory);
                 loadSummary(currentPeriodSummary);
                 if (window.Telegram?.WebApp) setTimeout(() => Telegram.WebApp.close(), 1000);
