@@ -7,7 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Стили без изменений (такие же, как в предыдущем ответе) */
+        /* Стили без изменений (см. предыдущие версии) */
         * {
             margin: 0;
             padding: 0;
@@ -727,21 +727,19 @@
 
         // ===== ФИЛЬТРЫ (ИСПРАВЛЕННАЯ ЛОГИКА) =====
         function attachPeriodListeners() {
-            // Обработчик для всех кнопок периода (кроме month обрабатываем отдельно)
+            // Обработчики для всех кнопок периода (кроме специальной обработки для месяца)
             historyPeriodBtns.forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     if (period === 'month') {
-                        // Если кнопка Month уже активна, открываем дропдаун
-                        if (currentFilterHistory.period === 'month') {
-                            openMonthDropdown('history');
-                        } else {
-                            // Активируем режим месяца с текущим месяцем
+                        // Если период уже не месяц, активируем месяц с текущим месяцем
+                        if (currentFilterHistory.period !== 'month') {
                             currentFilterHistory = { period: 'month', month: getCurrentMonth() };
                             updateMonthButton(historyMonthBtn, currentFilterHistory.month);
                             setActivePeriod(historyPeriodBtns, 'month');
                             loadHistory();
                         }
+                        // Если период уже месяц, ничего не делаем (откроется дропдаун по отдельному обработчику)
                     } else {
                         currentFilterHistory = { period };
                         setActivePeriod(historyPeriodBtns, period);
@@ -754,9 +752,7 @@
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     if (period === 'month') {
-                        if (currentFilterSummary.period === 'month') {
-                            openMonthDropdown('summary');
-                        } else {
+                        if (currentFilterSummary.period !== 'month') {
                             currentFilterSummary = { period: 'month', month: getCurrentMonth() };
                             updateMonthButton(summaryMonthBtn, currentFilterSummary.month);
                             setActivePeriod(summaryPeriodBtns, 'month');
@@ -770,6 +766,21 @@
                         loadChartData();
                     }
                 });
+            });
+
+            // Отдельные обработчики для кнопок месяца (открытие дропдауна)
+            historyMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentFilterHistory.period === 'month') {
+                    openMonthDropdown('history');
+                }
+            });
+
+            summaryMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentFilterSummary.period === 'month') {
+                    openMonthDropdown('summary');
+                }
             });
         }
 
@@ -1311,6 +1322,7 @@
             });
         }
 
+        // ===== СТАРТ =====
         init();
 
         if (window.Telegram?.WebApp) Telegram.WebApp.ready();
