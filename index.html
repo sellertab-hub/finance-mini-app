@@ -24,7 +24,6 @@
             padding: 8px;
         }
 
-        /* Экран загрузки */
         .loading-screen {
             position: fixed;
             top: 0;
@@ -67,9 +66,8 @@
             padding: 8px 0 2px;
         }
         .logo-image {
-            max-height: 21px; /* уменьшено на 30% от 30px */
+            max-height: 21px;
             width: auto;
-            /* тень убрана */
         }
 
         .segmented-control {
@@ -117,7 +115,6 @@
             height: 100%;
         }
 
-        /* Период-селектор с кнопками Today, Week, More */
         .period-selector {
             display: flex;
             gap: 6px;
@@ -143,7 +140,6 @@
             color: #36FF00;
         }
 
-        /* Блок дополнительных фильтров (Month/Year) */
         .more-filters {
             width: 100%;
             display: none;
@@ -694,6 +690,11 @@
         let allMonths = [];
         let allYears = [];
 
+        // Флаги включения полей из настроек
+        let typeEnabled = true;
+        let accountEnabled = true;
+        let articleEnabled = true;
+
         // ===== ЭЛЕМЕНТЫ ЭКРАНА ЗАГРУЗКИ =====
         const loadingScreen = document.getElementById('loadingScreen');
         const appContainer = document.getElementById('appContainer');
@@ -838,30 +839,29 @@
             
             // Тип
             if (settingsData.type) {
-                if (!settingsData.type.enabled) {
-                    typeContainer.style.display = 'none';
-                } else {
-                    typeContainer.style.display = 'block';
-                    // Можно установить тексты, но они уже динамически меняются
+                typeEnabled = settingsData.type.enabled;
+                typeContainer.style.display = typeEnabled ? 'block' : 'none';
+                if (settingsData.type.secondText) {
+                    // Запомним текст для использования позже
                 }
             }
             // Счёт
             if (settingsData.account) {
-                if (!settingsData.account.enabled) {
-                    accountContainer.style.display = 'none';
-                } else {
-                    accountContainer.style.display = 'block';
-                    accountSelectedText.textContent = settingsData.account.firstText || 'Сначала выберите тип';
-                    // secondText используется когда счёт выбран? Пока оставим как есть
+                accountEnabled = settingsData.account.enabled;
+                accountContainer.style.display = accountEnabled ? 'block' : 'none';
+                if (settingsData.account.firstText) {
+                    accountSelectedText.textContent = settingsData.account.firstText;
+                }
+                if (settingsData.account.secondText) {
+                    // для активного состояния
                 }
             }
             // Статья
             if (settingsData.article) {
-                if (!settingsData.article.enabled) {
-                    articleContainer.style.display = 'none';
-                } else {
-                    articleContainer.style.display = 'block';
-                    articleSelectedText.textContent = settingsData.article.firstText || 'Сначала выберите счёт';
+                articleEnabled = settingsData.article.enabled;
+                articleContainer.style.display = articleEnabled ? 'block' : 'none';
+                if (settingsData.article.firstText) {
+                    articleSelectedText.textContent = settingsData.article.firstText;
                 }
             }
         }
@@ -882,6 +882,7 @@
             attachModalListeners();
             attachTabListeners();
 
+            // Устанавливаем начальное состояние (Today)
             setActivePeriod(historyPeriodBtns, 'today');
             setActivePeriod(summaryPeriodBtns, 'today');
             loadHistory();
@@ -933,9 +934,10 @@
                     const period = btn.dataset.period;
                     currentFilterHistory = { period };
                     setActivePeriod(historyPeriodBtns, period);
+                    // Закрываем More фильтры, если они открыты
                     historyMoreFilters.classList.remove('show');
                     historyMoreBtn.classList.remove('active');
-                    historyMoreBtn.textContent = 'More'; // возвращаем текст
+                    // Сбрасываем тексты
                     historyMonthText.textContent = 'Month';
                     historyYearText.textContent = 'Year';
                     loadHistory();
@@ -950,7 +952,6 @@
                     setActivePeriod(summaryPeriodBtns, period);
                     summaryMoreFilters.classList.remove('show');
                     summaryMoreBtn.classList.remove('active');
-                    summaryMoreBtn.textContent = 'More';
                     summaryMonthText.textContent = 'Month';
                     summaryYearText.textContent = 'Year';
                     loadSummary();
@@ -963,21 +964,21 @@
                 e.stopPropagation();
                 const isActive = historyMoreFilters.classList.contains('show');
                 if (isActive) {
-                    // Скрываем и сбрасываем
+                    // Закрываем и сбрасываем на all
                     historyMoreFilters.classList.remove('show');
                     historyMoreBtn.classList.remove('active');
-                    historyMoreBtn.textContent = 'More';
                     historyMonthText.textContent = 'Month';
                     historyYearText.textContent = 'Year';
-                    currentFilterHistory = { period: 'today' };
-                    setActivePeriod(historyPeriodBtns, 'today');
+                    currentFilterHistory = { period: 'all' };
+                    setActivePeriod(historyPeriodBtns, null);
                     loadHistory();
                 } else {
-                    // Показываем
+                    // Открываем панель, показываем все записи
                     historyMoreFilters.classList.add('show');
                     historyMoreBtn.classList.add('active');
-                    historyMoreBtn.textContent = 'More ↺';
                     setActivePeriod(historyPeriodBtns, null);
+                    currentFilterHistory = { period: 'all' };
+                    loadHistory();
                 }
             });
 
@@ -987,18 +988,19 @@
                 if (isActive) {
                     summaryMoreFilters.classList.remove('show');
                     summaryMoreBtn.classList.remove('active');
-                    summaryMoreBtn.textContent = 'More';
                     summaryMonthText.textContent = 'Month';
                     summaryYearText.textContent = 'Year';
-                    currentFilterSummary = { period: 'today' };
-                    setActivePeriod(summaryPeriodBtns, 'today');
+                    currentFilterSummary = { period: 'all' };
+                    setActivePeriod(summaryPeriodBtns, null);
                     loadSummary();
                     loadChartData();
                 } else {
                     summaryMoreFilters.classList.add('show');
                     summaryMoreBtn.classList.add('active');
-                    summaryMoreBtn.textContent = 'More ↺';
                     setActivePeriod(summaryPeriodBtns, null);
+                    currentFilterSummary = { period: 'all' };
+                    loadSummary();
+                    loadChartData();
                 }
             });
         }
@@ -1067,7 +1069,7 @@
             } else if (month) {
                 currentFilterHistory = { period: 'month', month: month };
             } else {
-                currentFilterHistory = { period: 'today' };
+                currentFilterHistory = { period: 'all' }; // если ничего не выбрано, показываем всё
             }
             loadHistory();
         }
@@ -1083,7 +1085,7 @@
             } else if (month) {
                 currentFilterSummary = { period: 'month', month: month };
             } else {
-                currentFilterSummary = { period: 'today' };
+                currentFilterSummary = { period: 'all' };
             }
             loadSummary();
             loadChartData();
@@ -1318,7 +1320,7 @@
             });
             typeButton.disabled = false;
             
-            if (types.length === 1) {
+            if (types.length === 1 && typeEnabled) {
                 const singleType = types[0];
                 typeSelect.value = singleType;
                 typeSelectedText.textContent = singleType;
@@ -1343,11 +1345,13 @@
         }
 
         function enableAccountSelect() {
+            if (!accountEnabled) return;
             accountButton.disabled = false;
             accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
         }
 
         function updateAccountOptions() {
+            if (!accountEnabled) return;
             const type = typeSelect.value;
             if (!type) return;
             const accounts = Object.keys(categoriesData[type] || {});
@@ -1378,11 +1382,13 @@
         }
 
         function enableArticleSelect() {
+            if (!articleEnabled) return;
             articleButton.disabled = false;
             articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
         }
 
         function updateArticleOptions() {
+            if (!articleEnabled) return;
             const type = typeSelect.value;
             const account = accountSelect.value;
             if (!type || !account) return;
@@ -1438,18 +1444,19 @@
         }
 
         function checkSaveButton() {
-            const typeOk = typeSelect.value && typeSelect.value !== '';
-            const accountOk = accountSelect.value && accountSelect.value !== '';
-            const articleOk = articleSelect.value && articleSelect.value !== '';
+            // Проверяем только те поля, которые включены
+            let typeOk = !typeEnabled || (typeSelect.value && typeSelect.value !== '');
+            let accountOk = !accountEnabled || (accountSelect.value && accountSelect.value !== '');
+            let articleOk = !articleEnabled || (articleSelect.value && articleSelect.value !== '');
             const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
             saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
         }
 
         async function saveExpense(type, account, article, sign, amount, comment) {
             const formData = new URLSearchParams();
-            formData.append('type', type);
-            formData.append('account', account);
-            formData.append('article', article);
+            formData.append('type', typeEnabled ? type : '');
+            formData.append('account', accountEnabled ? account : '');
+            formData.append('article', articleEnabled ? article : '');
             formData.append('sign', sign);
             formData.append('amount', amount);
             formData.append('comment', comment);
@@ -1492,13 +1499,13 @@
             });
             accountButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (accountButton.disabled) return;
+                if (accountButton.disabled || !accountEnabled) return;
                 updateAccountOptions();
                 toggleDropdown(accountDropdown, accountButton);
             });
             articleButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (articleButton.disabled) return;
+                if (articleButton.disabled || !articleEnabled) return;
                 updateArticleOptions();
                 toggleDropdown(articleDropdown, articleButton);
             });
@@ -1514,7 +1521,8 @@
                 const sign = currentArticleSign;
                 const amount = parseFloat(amountInput.value);
                 const comment = commentInput.value;
-                if (!type || !account || !article || isNaN(amount) || amount <= 0) return;
+                // Проверяем только включённые поля
+                if ((typeEnabled && !type) || (accountEnabled && !account) || (articleEnabled && !article) || isNaN(amount) || amount <= 0) return;
                 saveBtn.disabled = true;
                 statusDiv.textContent = 'Отправка...';
                 statusDiv.className = 'status';
