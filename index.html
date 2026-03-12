@@ -7,7 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Все стили без изменений (копия из предыдущего ответа) */
+        /* Стили без изменений (такие же, как в предыдущем ответе) */
         * {
             margin: 0;
             padding: 0;
@@ -115,7 +115,6 @@
             border-radius: 40px;
             cursor: pointer;
             transition: 0.2s;
-            position: relative;
         }
         .period-btn.active {
             border-color: #36FF00;
@@ -592,7 +591,6 @@
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'today' };
         let activeDropdown = null;
-        let activeMonthDropdown = null;
         let currentArticleSign = 'plus';
         let chartInstances = {};
         let currentSummaryData = null;
@@ -727,22 +725,18 @@
             });
         }
 
-        // ===== ФИЛЬТРЫ =====
+        // ===== ФИЛЬТРЫ (ИСПРАВЛЕННАЯ ЛОГИКА) =====
         function attachPeriodListeners() {
-            // История
+            // Обработчик для всех кнопок периода (кроме month обрабатываем отдельно)
             historyPeriodBtns.forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     if (period === 'month') {
-                        // Если уже выбран месяц, открываем дропдаун
+                        // Если кнопка Month уже активна, открываем дропдаун
                         if (currentFilterHistory.period === 'month') {
-                            openMonthDropdown(historyMonthDropdown, currentFilterHistory.month || getCurrentMonth(), (month) => {
-                                currentFilterHistory.month = month;
-                                historyMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
-                                loadHistory();
-                            });
+                            openMonthDropdown('history');
                         } else {
-                            // Включаем режим месяца
+                            // Активируем режим месяца с текущим месяцем
                             currentFilterHistory = { period: 'month', month: getCurrentMonth() };
                             updateMonthButton(historyMonthBtn, currentFilterHistory.month);
                             setActivePeriod(historyPeriodBtns, 'month');
@@ -756,18 +750,12 @@
                 });
             });
 
-            // Итоги
             summaryPeriodBtns.forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     if (period === 'month') {
                         if (currentFilterSummary.period === 'month') {
-                            openMonthDropdown(summaryMonthDropdown, currentFilterSummary.month || getCurrentMonth(), (month) => {
-                                currentFilterSummary.month = month;
-                                summaryMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
-                                loadSummary();
-                                loadChartData();
-                            });
+                            openMonthDropdown('summary');
                         } else {
                             currentFilterSummary = { period: 'month', month: getCurrentMonth() };
                             updateMonthButton(summaryMonthBtn, currentFilterSummary.month);
@@ -783,39 +771,19 @@
                     }
                 });
             });
-
-            // Отдельные обработчики для кнопок месяца (чтобы открывать дропдаун)
-            historyMonthBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (currentFilterHistory.period === 'month') {
-                    openMonthDropdown(historyMonthDropdown, currentFilterHistory.month || getCurrentMonth(), (month) => {
-                        currentFilterHistory.month = month;
-                        historyMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
-                        loadHistory();
-                    });
-                }
-            });
-
-            summaryMonthBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (currentFilterSummary.period === 'month') {
-                    openMonthDropdown(summaryMonthDropdown, currentFilterSummary.month || getCurrentMonth(), (month) => {
-                        currentFilterSummary.month = month;
-                        summaryMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
-                        loadSummary();
-                        loadChartData();
-                    });
-                }
-            });
         }
 
         function updateMonthButton(btn, month) {
             btn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
         }
 
-        function openMonthDropdown(dropdown, currentMonth, onSelect) {
-            // Закрываем другие дропдауны
+        function openMonthDropdown(target) {
+            const dropdown = target === 'history' ? historyMonthDropdown : summaryMonthDropdown;
+            const currentMonth = target === 'history' ? currentFilterHistory.month : currentFilterSummary.month;
+            
+            // Закрываем все другие дропдауны
             document.querySelectorAll('.month-dropdown').forEach(d => d.classList.remove('show'));
+            
             // Заполняем опции
             dropdown.innerHTML = '';
             const months = availableMonths.length ? availableMonths : [getCurrentMonth()];
@@ -825,7 +793,16 @@
                 div.textContent = formatMonth(m);
                 if (m === currentMonth) div.classList.add('selected');
                 div.addEventListener('click', () => {
-                    onSelect(m);
+                    if (target === 'history') {
+                        currentFilterHistory.month = m;
+                        updateMonthButton(historyMonthBtn, m);
+                        loadHistory();
+                    } else {
+                        currentFilterSummary.month = m;
+                        updateMonthButton(summaryMonthBtn, m);
+                        loadSummary();
+                        loadChartData();
+                    }
                     dropdown.classList.remove('show');
                 });
                 dropdown.appendChild(div);
