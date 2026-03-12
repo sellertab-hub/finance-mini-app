@@ -7,7 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Стили без изменений (см. предыдущие версии) */
+        /* Все стили без изменений (идентичны предыдущим версиям) */
         * {
             margin: 0;
             padding: 0;
@@ -727,19 +727,22 @@
 
         // ===== ФИЛЬТРЫ (ИСПРАВЛЕННАЯ ЛОГИКА) =====
         function attachPeriodListeners() {
-            // Обработчики для всех кнопок периода (кроме специальной обработки для месяца)
+            // Обработчик для истории
             historyPeriodBtns.forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
+                    
                     if (period === 'month') {
-                        // Если период уже не месяц, активируем месяц с текущим месяцем
-                        if (currentFilterHistory.period !== 'month') {
+                        // Если уже выбран месяц, открываем дропдаун
+                        if (currentFilterHistory.period === 'month') {
+                            openMonthDropdown('history');
+                        } else {
+                            // Иначе активируем месяц с текущим месяцем
                             currentFilterHistory = { period: 'month', month: getCurrentMonth() };
                             updateMonthButton(historyMonthBtn, currentFilterHistory.month);
                             setActivePeriod(historyPeriodBtns, 'month');
                             loadHistory();
                         }
-                        // Если период уже месяц, ничего не делаем (откроется дропдаун по отдельному обработчику)
                     } else {
                         currentFilterHistory = { period };
                         setActivePeriod(historyPeriodBtns, period);
@@ -748,11 +751,15 @@
                 });
             });
 
+            // Обработчик для итогов
             summaryPeriodBtns.forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
+                    
                     if (period === 'month') {
-                        if (currentFilterSummary.period !== 'month') {
+                        if (currentFilterSummary.period === 'month') {
+                            openMonthDropdown('summary');
+                        } else {
                             currentFilterSummary = { period: 'month', month: getCurrentMonth() };
                             updateMonthButton(summaryMonthBtn, currentFilterSummary.month);
                             setActivePeriod(summaryPeriodBtns, 'month');
@@ -767,21 +774,6 @@
                     }
                 });
             });
-
-            // Отдельные обработчики для кнопок месяца (открытие дропдауна)
-            historyMonthBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (currentFilterHistory.period === 'month') {
-                    openMonthDropdown('history');
-                }
-            });
-
-            summaryMonthBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (currentFilterSummary.period === 'month') {
-                    openMonthDropdown('summary');
-                }
-            });
         }
 
         function updateMonthButton(btn, month) {
@@ -789,6 +781,7 @@
         }
 
         function openMonthDropdown(target) {
+            console.log('openMonthDropdown', target, availableMonths); // для отладки
             const dropdown = target === 'history' ? historyMonthDropdown : summaryMonthDropdown;
             const currentMonth = target === 'history' ? currentFilterHistory.month : currentFilterSummary.month;
             
