@@ -7,6 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* Все стили без изменений (копия из предыдущего ответа) */
         * {
             margin: 0;
             padding: 0;
@@ -97,7 +98,6 @@
             height: 100%;
         }
 
-        /* ===== ПЕРИОДЫ (Today, Week, Month, All) ===== */
         .period-selector {
             display: flex;
             gap: 8px;
@@ -119,12 +119,6 @@
         }
         .period-btn.active {
             border-color: #36FF00;
-            color: #36FF00;
-        }
-        .period-btn.month-active::after {
-            content: "▼";
-            font-size: 10px;
-            margin-left: 4px;
             color: #36FF00;
         }
         .month-dropdown {
@@ -161,7 +155,6 @@
             color: #000;
         }
 
-        /* ===== КАСТОМНЫЕ СЕЛЕКТЫ (без изменений) ===== */
         .custom-select {
             position: relative;
             width: 100%;
@@ -594,16 +587,9 @@
         // ===== НАСТРОЙКИ =====
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ НА ВАШ URL
 
-        // Звуки
-        const click1 = new Audio('click1.mp3');
-        const click2 = new Audio('click2.mp3');
-        function playSound(sound) {
-            sound.play().catch(() => {});
-        }
-
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
-        let currentFilterHistory = { period: 'today' }; // { period, month? }
+        let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'today' };
         let activeDropdown = null;
         let activeMonthDropdown = null;
@@ -612,7 +598,7 @@
         let currentSummaryData = null;
         let currentEditRow = null;
         let currentEditSign = 'plus';
-        let availableMonths = []; // список месяцев, которые есть в данных (для дропдауна)
+        let availableMonths = [];
 
         // ===== ЭЛЕМЕНТЫ ЭКРАНА ADD =====
         const typeSelect = document.getElementById('typeSelect');
@@ -681,7 +667,6 @@
             return date.toLocaleString('en', { month: 'short' }).toUpperCase();
         }
 
-        // Извлечение месяцев из записей
         function extractMonths(records) {
             const months = new Set();
             records.forEach(r => {
@@ -700,7 +685,6 @@
             attachModalListeners();
             attachTabListeners();
 
-            // Устанавливаем начальный фильтр (today)
             setActivePeriod(historyPeriodBtns, 'today');
             setActivePeriod(summaryPeriodBtns, 'today');
             loadHistory();
@@ -750,22 +734,21 @@
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     if (period === 'month') {
-                        // Если уже активен месяц, открываем дропдаун
+                        // Если уже выбран месяц, открываем дропдаун
                         if (currentFilterHistory.period === 'month') {
-                            toggleMonthDropdown(historyMonthDropdown, historyMonthBtn, currentFilterHistory.month || getCurrentMonth(), (month) => {
+                            openMonthDropdown(historyMonthDropdown, currentFilterHistory.month || getCurrentMonth(), (month) => {
                                 currentFilterHistory.month = month;
                                 historyMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
                                 loadHistory();
                             });
                         } else {
-                            // Включаем режим месяца с текущим месяцем
+                            // Включаем режим месяца
                             currentFilterHistory = { period: 'month', month: getCurrentMonth() };
                             updateMonthButton(historyMonthBtn, currentFilterHistory.month);
                             setActivePeriod(historyPeriodBtns, 'month');
                             loadHistory();
                         }
                     } else {
-                        // Другой период
                         currentFilterHistory = { period };
                         setActivePeriod(historyPeriodBtns, period);
                         loadHistory();
@@ -779,7 +762,7 @@
                     const period = btn.dataset.period;
                     if (period === 'month') {
                         if (currentFilterSummary.period === 'month') {
-                            toggleMonthDropdown(summaryMonthDropdown, summaryMonthBtn, currentFilterSummary.month || getCurrentMonth(), (month) => {
+                            openMonthDropdown(summaryMonthDropdown, currentFilterSummary.month || getCurrentMonth(), (month) => {
                                 currentFilterSummary.month = month;
                                 summaryMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
                                 loadSummary();
@@ -800,39 +783,60 @@
                     }
                 });
             });
+
+            // Отдельные обработчики для кнопок месяца (чтобы открывать дропдаун)
+            historyMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentFilterHistory.period === 'month') {
+                    openMonthDropdown(historyMonthDropdown, currentFilterHistory.month || getCurrentMonth(), (month) => {
+                        currentFilterHistory.month = month;
+                        historyMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
+                        loadHistory();
+                    });
+                }
+            });
+
+            summaryMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentFilterSummary.period === 'month') {
+                    openMonthDropdown(summaryMonthDropdown, currentFilterSummary.month || getCurrentMonth(), (month) => {
+                        currentFilterSummary.month = month;
+                        summaryMonthBtn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
+                        loadSummary();
+                        loadChartData();
+                    });
+                }
+            });
         }
 
         function updateMonthButton(btn, month) {
             btn.innerHTML = formatMonth(month) + ' <span class="arrow">▼</span>';
         }
 
-        function toggleMonthDropdown(dropdown, btn, currentMonth, onSelect) {
-            if (dropdown.classList.contains('show')) {
-                dropdown.classList.remove('show');
-            } else {
-                // Заполняем дропдаун доступными месяцами
-                dropdown.innerHTML = '';
-                const months = availableMonths.length ? availableMonths : [getCurrentMonth()];
-                months.forEach(m => {
-                    const div = document.createElement('div');
-                    div.className = 'month-option';
-                    div.textContent = formatMonth(m);
-                    if (m === currentMonth) div.classList.add('selected');
-                    div.addEventListener('click', () => {
-                        onSelect(m);
-                        dropdown.classList.remove('show');
-                    });
-                    dropdown.appendChild(div);
+        function openMonthDropdown(dropdown, currentMonth, onSelect) {
+            // Закрываем другие дропдауны
+            document.querySelectorAll('.month-dropdown').forEach(d => d.classList.remove('show'));
+            // Заполняем опции
+            dropdown.innerHTML = '';
+            const months = availableMonths.length ? availableMonths : [getCurrentMonth()];
+            months.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'month-option';
+                div.textContent = formatMonth(m);
+                if (m === currentMonth) div.classList.add('selected');
+                div.addEventListener('click', () => {
+                    onSelect(m);
+                    dropdown.classList.remove('show');
                 });
-                dropdown.classList.add('show');
-            }
+                dropdown.appendChild(div);
+            });
+            dropdown.classList.add('show');
         }
 
         // Закрытие дропдаунов при клике вне
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.period-btn') && !e.target.closest('.month-dropdown')) {
-                historyMonthDropdown.classList.remove('show');
-                summaryMonthDropdown.classList.remove('show');
+                document.querySelectorAll('.month-dropdown').forEach(d => d.classList.remove('show'));
             }
         });
 
@@ -868,7 +872,6 @@
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                // Сохраняем доступные месяцы
                 availableMonths = extractMonths(data);
                 renderHistory(data);
             } catch (e) {
@@ -1048,11 +1051,9 @@
                 resetAccountAndArticle();
                 enableAccountSelect();
                 checkSaveButton();
-                playSound(click2);
             });
             typeButton.disabled = false;
             
-            // Если только один тип, выбираем его автоматически
             if (types.length === 1) {
                 const singleType = types[0];
                 typeSelect.value = singleType;
@@ -1101,7 +1102,6 @@
                 resetArticle();
                 enableArticleSelect();
                 checkSaveButton();
-                playSound(click2);
             });
         }
 
@@ -1138,7 +1138,6 @@
                 articleSelectedText.textContent = value.name;
                 currentArticleSign = value.sign;
                 checkSaveButton();
-                playSound(click2);
             });
         }
 
@@ -1174,7 +1173,6 @@
             }
         }
 
-        // ===== ПРОВЕРКА КНОПКИ СОХРАНЕНИЯ =====
         function checkSaveButton() {
             const typeOk = typeSelect.value && typeSelect.value !== '';
             const accountOk = accountSelect.value && accountSelect.value !== '';
@@ -1183,7 +1181,6 @@
             saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
         }
 
-        // ===== СОХРАНЕНИЕ ЗАПИСИ =====
         async function saveExpense(type, account, article, sign, amount, comment) {
             const formData = new URLSearchParams();
             formData.append('type', type);
@@ -1194,7 +1191,6 @@
             formData.append('comment', comment);
             try {
                 await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
-                playSound(click1);
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
                 
@@ -1224,7 +1220,44 @@
             }
         }
 
-        // ===== МОДАЛЬНОЕ ОКНО =====
+        function attachSelectListeners() {
+            typeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (typeButton.disabled) return;
+                toggleDropdown(typeDropdown, typeButton);
+            });
+            accountButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (accountButton.disabled) return;
+                updateAccountOptions();
+                toggleDropdown(accountDropdown, accountButton);
+            });
+            articleButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (articleButton.disabled) return;
+                updateArticleOptions();
+                toggleDropdown(articleDropdown, articleButton);
+            });
+            document.addEventListener('click', closeAllDropdowns);
+
+            amountInput.addEventListener('input', checkSaveButton);
+            commentInput.addEventListener('input', () => {});
+
+            saveBtn.addEventListener('click', () => {
+                const type = typeSelect.value;
+                const account = accountSelect.value;
+                const article = articleSelect.value;
+                const sign = currentArticleSign;
+                const amount = parseFloat(amountInput.value);
+                const comment = commentInput.value;
+                if (!type || !account || !article || isNaN(amount) || amount <= 0) return;
+                saveBtn.disabled = true;
+                statusDiv.textContent = 'Отправка...';
+                statusDiv.className = 'status';
+                saveExpense(type, account, article, sign, amount, comment);
+            });
+        }
+
         function openEditModal(record) {
             currentEditRow = record.row;
             currentEditSign = record.amount < 0 ? 'minus' : 'plus';
@@ -1248,7 +1281,6 @@
                 if (!confirm('Удалить запись?')) return;
                 try {
                     await fetch(`${APPS_SCRIPT_URL}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
-                    playSound(click1);
                     modal.classList.remove('show');
                     loadHistory();
                     loadSummary();
@@ -1274,7 +1306,6 @@
                 
                 try {
                     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
-                    playSound(click1);
                     modal.classList.remove('show');
                     loadHistory();
                     loadSummary();
@@ -1285,49 +1316,6 @@
             });
         }
 
-        // ===== ПРИВЯЗКА СОБЫТИЙ К КАСТОМНЫМ СЕЛЕКТАМ =====
-        function attachSelectListeners() {
-            typeButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (typeButton.disabled) return;
-                toggleDropdown(typeDropdown, typeButton);
-            });
-            accountButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (accountButton.disabled) return;
-                updateAccountOptions();
-                toggleDropdown(accountDropdown, accountButton);
-            });
-            articleButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (articleButton.disabled) return;
-                updateArticleOptions();
-                toggleDropdown(articleDropdown, articleButton);
-            });
-            document.addEventListener('click', closeAllDropdowns);
-
-            amountInput.addEventListener('input', () => {
-                playSound(click2);
-                checkSaveButton();
-            });
-            commentInput.addEventListener('input', () => playSound(click2));
-
-            saveBtn.addEventListener('click', () => {
-                const type = typeSelect.value;
-                const account = accountSelect.value;
-                const article = articleSelect.value;
-                const sign = currentArticleSign;
-                const amount = parseFloat(amountInput.value);
-                const comment = commentInput.value;
-                if (!type || !account || !article || isNaN(amount) || amount <= 0) return;
-                saveBtn.disabled = true;
-                statusDiv.textContent = 'Отправка...';
-                statusDiv.className = 'status';
-                saveExpense(type, account, article, sign, amount, comment);
-            });
-        }
-
-        // ===== ВКЛАДКИ НА SUM =====
         function attachTabListeners() {
             summaryTabs.forEach(tab => {
                 tab.addEventListener('click', () => {
@@ -1346,7 +1334,6 @@
             });
         }
 
-        // ===== СТАРТ =====
         init();
 
         if (window.Telegram?.WebApp) Telegram.WebApp.ready();
