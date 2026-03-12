@@ -7,7 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Стили без изменений (см. предыдущие версии) */
+        /* Стили без изменений (можно оставить как в предыдущих версиях) */
         * {
             margin: 0;
             padding: 0;
@@ -588,6 +588,7 @@
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
+        let monthsList = []; // список месяцев из листа Months
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'today' };
         let activeDropdown = null;
@@ -596,7 +597,6 @@
         let currentSummaryData = null;
         let currentEditRow = null;
         let currentEditSign = 'plus';
-        let allMonths = []; // все месяцы из всех записей
 
         // ===== ЭЛЕМЕНТЫ ЭКРАНА ADD =====
         const typeSelect = document.getElementById('typeSelect');
@@ -665,33 +665,24 @@
             return date.toLocaleString('en', { month: 'short' }).toUpperCase();
         }
 
-        function extractMonths(records) {
-            const months = new Set();
-            records.forEach(r => {
-                const d = new Date(r.timestamp);
-                months.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
-            });
-            return Array.from(months).sort().reverse();
-        }
-
-        // ===== ЗАГРУЗКА ВСЕХ МЕСЯЦЕВ =====
-        async function loadAllMonths() {
+        // ===== ЗАГРУЗКА МЕСЯЦЕВ ИЗ ЛИСТА MONTHS =====
+        async function loadMonths() {
             try {
-                const url = `${APPS_SCRIPT_URL}?action=list&period=all`;
+                const url = `${APPS_SCRIPT_URL}?action=months`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                allMonths = extractMonths(data);
-                console.log('allMonths updated', allMonths);
+                monthsList = data; // массив объектов { key, start, end }
+                console.log('Months loaded', monthsList);
             } catch (e) {
-                console.error('Failed to load all months', e);
+                console.error('Failed to load months', e);
             }
         }
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         function init() {
             loadCategories();
-            loadAllMonths(); // загружаем все месяцы при старте
+            loadMonths(); // загружаем список месяцев
             attachNavigationListeners();
             attachPeriodListeners();
             attachSelectListeners();
@@ -790,29 +781,29 @@
         }
 
         function openMonthDropdown(target) {
-            console.log('openMonthDropdown', target, allMonths); // для отладки
+            console.log('openMonthDropdown', target, monthsList);
             const dropdown = target === 'history' ? historyMonthDropdown : summaryMonthDropdown;
             const currentMonth = target === 'history' ? currentFilterHistory.month : currentFilterSummary.month;
             
             // Закрываем все другие дропдауны
             document.querySelectorAll('.month-dropdown').forEach(d => d.classList.remove('show'));
             
-            // Заполняем опции из allMonths (глобальный список всех месяцев)
+            // Заполняем опции из monthsList
             dropdown.innerHTML = '';
-            const months = allMonths.length ? allMonths : [getCurrentMonth()];
-            months.forEach(m => {
+            const months = monthsList.length ? monthsList.map(m => m.key) : [getCurrentMonth()];
+            months.forEach(key => {
                 const div = document.createElement('div');
                 div.className = 'month-option';
-                div.textContent = formatMonth(m);
-                if (m === currentMonth) div.classList.add('selected');
+                div.textContent = formatMonth(key);
+                if (key === currentMonth) div.classList.add('selected');
                 div.addEventListener('click', () => {
                     if (target === 'history') {
-                        currentFilterHistory.month = m;
-                        updateMonthButton(historyMonthBtn, m);
+                        currentFilterHistory.month = key;
+                        updateMonthButton(historyMonthBtn, key);
                         loadHistory();
                     } else {
-                        currentFilterSummary.month = m;
-                        updateMonthButton(summaryMonthBtn, m);
+                        currentFilterSummary.month = key;
+                        updateMonthButton(summaryMonthBtn, key);
                         loadSummary();
                         loadChartData();
                     }
@@ -1198,11 +1189,11 @@
                 currentArticleSign = 'plus';
                 checkSaveButton();
                 
-                // После сохранения обновляем все данные и список месяцев
-                loadAllMonths();
+                // Обновляем данные
                 loadHistory();
                 loadSummary();
                 loadChartData();
+                // Не обновляем months, так как они не меняются от добавления записи (если только не добавить новый месяц)
                 if (window.Telegram?.WebApp) setTimeout(() => Telegram.WebApp.close(), 1000);
             } catch (e) {
                 statusDiv.textContent = '❌ Ошибка при сохранении';
@@ -1273,7 +1264,6 @@
                 try {
                     await fetch(`${APPS_SCRIPT_URL}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
                     modal.classList.remove('show');
-                    loadAllMonths();
                     loadHistory();
                     loadSummary();
                     loadChartData();
@@ -1299,7 +1289,6 @@
                 try {
                     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
                     modal.classList.remove('show');
-                    loadAllMonths();
                     loadHistory();
                     loadSummary();
                     loadChartData();
