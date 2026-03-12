@@ -45,7 +45,6 @@
         .loading-logo {
             max-width: 120px;
             height: auto;
-            filter: drop-shadow(0 0 8px #36FF00);
         }
 
         .app-container {
@@ -65,19 +64,19 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 8px 0 2px; /* уменьшил отступы */
+            padding: 8px 0 2px;
         }
         .logo-image {
             max-height: 21px; /* уменьшено на 30% от 30px */
             width: auto;
-            filter: drop-shadow(0 0 8px #36FF00);
+            /* тень убрана */
         }
 
         .segmented-control {
             display: flex;
-            padding: 4px 12px; /* уменьшил */
+            padding: 4px 12px;
             gap: 6px;
-            margin: 4px 16px; /* уменьшил */
+            margin: 4px 16px;
         }
         .segmented-btn {
             flex: 1;
@@ -92,7 +91,6 @@
             transition: all 0.2s;
             cursor: pointer;
             letter-spacing: 0.5px;
-            /* тень убрана */
         }
         .segmented-btn.active {
             border-color: #36FF00;
@@ -114,7 +112,7 @@
         .screen {
             flex: 0 0 100%;
             scroll-snap-align: start;
-            padding: 8px 16px; /* уменьшил */
+            padding: 8px 16px;
             overflow-y: auto;
             height: 100%;
         }
@@ -123,13 +121,13 @@
         .period-selector {
             display: flex;
             gap: 6px;
-            margin-bottom: 8px; /* уменьшил */
+            margin-bottom: 8px;
             position: relative;
             flex-wrap: wrap;
         }
         .period-btn {
             flex: 1;
-            padding: 8px 0; /* уменьшил */
+            padding: 8px 0;
             background: transparent;
             border: 2px solid #444;
             color: #aaa;
@@ -139,7 +137,6 @@
             cursor: pointer;
             transition: 0.2s;
             min-width: 60px;
-            /* тень убрана */
         }
         .period-btn.active {
             border-color: #36FF00;
@@ -174,7 +171,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            /* тень убрана */
         }
         .filter-button .arrow {
             width: 14px;
@@ -224,11 +220,11 @@
         .custom-select {
             position: relative;
             width: 100%;
-            margin-bottom: 10px; /* уменьшил */
+            margin-bottom: 10px;
         }
         .select-button {
             width: 100%;
-            padding: 14px 12px; /* уменьшил */
+            padding: 14px 12px;
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 16px;
@@ -239,7 +235,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            /* тень убрана */
         }
         .select-button .arrow {
             width: 16px;
@@ -291,7 +286,7 @@
 
         input[type="number"], textarea {
             width: 100%;
-            padding: 14px 12px; /* уменьшил */
+            padding: 14px 12px;
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 16px;
@@ -300,7 +295,7 @@
             outline: none;
             transition: all 0.2s ease;
             font-family: inherit;
-            margin-bottom: 10px; /* уменьшил */
+            margin-bottom: 10px;
         }
         input[type="number"]:focus, textarea:focus {
             border-color: #FFDD21;
@@ -313,7 +308,7 @@
 
         button {
             width: 100%;
-            padding: 16px; /* уменьшил */
+            padding: 16px;
             background: #36FF00;
             border: none;
             border-radius: 60px;
@@ -322,8 +317,7 @@
             color: #000;
             cursor: pointer;
             transition: 0.2s;
-            margin-top: 6px; /* уменьшил */
-            /* тень убрана */
+            margin-top: 6px;
         }
         button:disabled {
             background: #2a2a2a;
@@ -687,7 +681,8 @@
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
-        let currentFilterHistory = { period: 'today' }; // может быть 'today', 'week', или объект с month/year
+        let settingsData = null; // { key: { firstText, secondText, enabled } }
+        let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'today' };
         let activeDropdown = null;
         let activeFilterDropdown = null;
@@ -721,6 +716,11 @@
         const typeSelectedText = document.getElementById('typeSelectedText');
         const accountSelectedText = document.getElementById('accountSelectedText');
         const articleSelectedText = document.getElementById('articleSelectedText');
+
+        // Контейнеры выпадающих списков (для скрытия)
+        const typeContainer = document.getElementById('typeSelectContainer');
+        const accountContainer = document.getElementById('accountSelectContainer');
+        const articleContainer = document.getElementById('articleSelectContainer');
 
         // ===== ЭЛЕМЕНТЫ ФИЛЬТРОВ =====
         const historyPeriodBtns = document.querySelectorAll('#historyPeriod .period-btn');
@@ -790,14 +790,14 @@
             return date.toLocaleString('en', { month: 'short' }).toUpperCase();
         }
 
-        // ===== ЗАГРУЗКА МЕСЯЦЕВ И ГОДОВ =====
+        // ===== ЗАГРУЗКА ДАННЫХ =====
         async function loadMonths() {
             try {
                 const url = `${APPS_SCRIPT_URL}?action=months`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                allMonths = data; // массив строк "2026-03"
+                allMonths = data;
                 console.log('Months loaded', allMonths);
             } catch (e) {
                 console.error('Failed to load months', e);
@@ -811,7 +811,7 @@
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                allYears = data; // массив строк "2026"
+                allYears = data;
                 console.log('Years loaded', allYears);
             } catch (e) {
                 console.error('Failed to load years', e);
@@ -819,14 +819,59 @@
             }
         }
 
+        async function loadSettings() {
+            try {
+                const url = `${APPS_SCRIPT_URL}?action=settings`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                settingsData = data;
+                console.log('Settings loaded', settingsData);
+                applySettings();
+            } catch (e) {
+                console.error('Failed to load settings', e);
+            }
+        }
+
+        function applySettings() {
+            if (!settingsData) return;
+            
+            // Тип
+            if (settingsData.type) {
+                if (!settingsData.type.enabled) {
+                    typeContainer.style.display = 'none';
+                } else {
+                    typeContainer.style.display = 'block';
+                    // Можно установить тексты, но они уже динамически меняются
+                }
+            }
+            // Счёт
+            if (settingsData.account) {
+                if (!settingsData.account.enabled) {
+                    accountContainer.style.display = 'none';
+                } else {
+                    accountContainer.style.display = 'block';
+                    accountSelectedText.textContent = settingsData.account.firstText || 'Сначала выберите тип';
+                    // secondText используется когда счёт выбран? Пока оставим как есть
+                }
+            }
+            // Статья
+            if (settingsData.article) {
+                if (!settingsData.article.enabled) {
+                    articleContainer.style.display = 'none';
+                } else {
+                    articleContainer.style.display = 'block';
+                    articleSelectedText.textContent = settingsData.article.firstText || 'Сначала выберите счёт';
+                }
+            }
+        }
+
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
-            // Показываем загрузку
             loadingScreen.classList.remove('hidden');
             
-            await Promise.all([loadMonths(), loadYears(), loadCategories()]);
+            await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
             
-            // Скрываем загрузку, показываем приложение
             loadingScreen.classList.add('hidden');
             appContainer.style.display = 'flex';
             
@@ -883,14 +928,14 @@
         function attachPeriodListeners() {
             // Today / Week
             historyPeriodBtns.forEach(btn => {
+                if (btn.id && btn.id.includes('MoreBtn')) return;
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     currentFilterHistory = { period };
                     setActivePeriod(historyPeriodBtns, period);
-                    // Скрываем More фильтры
                     historyMoreFilters.classList.remove('show');
                     historyMoreBtn.classList.remove('active');
-                    // Сбрасываем выбранные месяц/год
+                    historyMoreBtn.textContent = 'More'; // возвращаем текст
                     historyMonthText.textContent = 'Month';
                     historyYearText.textContent = 'Year';
                     loadHistory();
@@ -898,12 +943,14 @@
             });
 
             summaryPeriodBtns.forEach(btn => {
+                if (btn.id && btn.id.includes('MoreBtn')) return;
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     currentFilterSummary = { period };
                     setActivePeriod(summaryPeriodBtns, period);
                     summaryMoreFilters.classList.remove('show');
                     summaryMoreBtn.classList.remove('active');
+                    summaryMoreBtn.textContent = 'More';
                     summaryMonthText.textContent = 'Month';
                     summaryYearText.textContent = 'Year';
                     loadSummary();
@@ -914,24 +961,44 @@
             // More buttons
             historyMoreBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                historyMoreFilters.classList.toggle('show');
-                if (historyMoreFilters.classList.contains('show')) {
-                    historyMoreBtn.classList.add('active');
-                    // Убираем активность с Today/Week
-                    setActivePeriod(historyPeriodBtns, null);
-                } else {
+                const isActive = historyMoreFilters.classList.contains('show');
+                if (isActive) {
+                    // Скрываем и сбрасываем
+                    historyMoreFilters.classList.remove('show');
                     historyMoreBtn.classList.remove('active');
+                    historyMoreBtn.textContent = 'More';
+                    historyMonthText.textContent = 'Month';
+                    historyYearText.textContent = 'Year';
+                    currentFilterHistory = { period: 'today' };
+                    setActivePeriod(historyPeriodBtns, 'today');
+                    loadHistory();
+                } else {
+                    // Показываем
+                    historyMoreFilters.classList.add('show');
+                    historyMoreBtn.classList.add('active');
+                    historyMoreBtn.textContent = 'More ↺';
+                    setActivePeriod(historyPeriodBtns, null);
                 }
             });
 
             summaryMoreBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                summaryMoreFilters.classList.toggle('show');
-                if (summaryMoreFilters.classList.contains('show')) {
-                    summaryMoreBtn.classList.add('active');
-                    setActivePeriod(summaryPeriodBtns, null);
-                } else {
+                const isActive = summaryMoreFilters.classList.contains('show');
+                if (isActive) {
+                    summaryMoreFilters.classList.remove('show');
                     summaryMoreBtn.classList.remove('active');
+                    summaryMoreBtn.textContent = 'More';
+                    summaryMonthText.textContent = 'Month';
+                    summaryYearText.textContent = 'Year';
+                    currentFilterSummary = { period: 'today' };
+                    setActivePeriod(summaryPeriodBtns, 'today');
+                    loadSummary();
+                    loadChartData();
+                } else {
+                    summaryMoreFilters.classList.add('show');
+                    summaryMoreBtn.classList.add('active');
+                    summaryMoreBtn.textContent = 'More ↺';
+                    setActivePeriod(summaryPeriodBtns, null);
                 }
             });
         }
@@ -962,7 +1029,6 @@
         function setupFilterDropdown(button, dropdown, items, textElement, onSelect) {
             button.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // Закрываем другие
                 closeAllFilterDropdowns();
                 dropdown.innerHTML = '';
                 items.forEach(item => {
@@ -1001,7 +1067,7 @@
             } else if (month) {
                 currentFilterHistory = { period: 'month', month: month };
             } else {
-                currentFilterHistory = { period: 'today' }; // fallback
+                currentFilterHistory = { period: 'today' };
             }
             loadHistory();
         }
@@ -1024,7 +1090,6 @@
         }
 
         function getMonthValueFromText(text) {
-            // Ищем в allMonths по отформатированному названию (неэффективно, но для демо сойдёт)
             for (let m of allMonths) {
                 if (formatMonth(m) === text) return m;
             }
@@ -1261,17 +1326,17 @@
                 enableAccountSelect();
                 checkSaveButton();
             } else {
-                typeSelectedText.textContent = 'Выберите тип';
+                typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
             }
         }
 
         function resetAccountAndArticle() {
             accountSelect.value = '';
-            accountSelectedText.textContent = 'Сначала выберите тип';
+            accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
             accountButton.disabled = true;
             accountDropdown.innerHTML = '';
             articleSelect.value = '';
-            articleSelectedText.textContent = 'Сначала выберите счёт';
+            articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
             articleButton.disabled = true;
             articleDropdown.innerHTML = '';
             currentArticleSign = 'plus';
@@ -1279,7 +1344,7 @@
 
         function enableAccountSelect() {
             accountButton.disabled = false;
-            accountSelectedText.textContent = 'Выберите счёт';
+            accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
         }
 
         function updateAccountOptions() {
@@ -1306,7 +1371,7 @@
 
         function resetArticle() {
             articleSelect.value = '';
-            articleSelectedText.textContent = 'Сначала выберите счёт';
+            articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
             articleButton.disabled = true;
             articleDropdown.innerHTML = '';
             currentArticleSign = 'plus';
@@ -1314,7 +1379,7 @@
 
         function enableArticleSelect() {
             articleButton.disabled = false;
-            articleSelectedText.textContent = 'Выберите статью';
+            articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
         }
 
         function updateArticleOptions() {
@@ -1398,9 +1463,9 @@
                 typeSelect.value = '';
                 accountSelect.value = '';
                 articleSelect.value = '';
-                typeSelectedText.textContent = 'Выберите тип';
-                accountSelectedText.textContent = 'Сначала выберите тип';
-                articleSelectedText.textContent = 'Сначала выберите счёт';
+                typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
+                accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
+                articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
                 accountButton.disabled = true;
                 articleButton.disabled = true;
                 accountDropdown.innerHTML = '';
