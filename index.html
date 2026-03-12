@@ -7,7 +7,6 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Все стили без изменений (идентичны предыдущим) */
         * {
             margin: 0;
             padding: 0;
@@ -20,11 +19,33 @@
             color: #ffffff;
             min-height: 100vh;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 8px;
-            overflow: hidden;
+        }
+
+        /* Экран загрузки */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.3s;
+        }
+        .loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-logo {
+            max-width: 120px;
+            height: auto;
+            filter: drop-shadow(0 0 8px #36FF00);
         }
 
         .app-container {
@@ -34,7 +55,6 @@
             background: #0c0c0c;
             border-radius: 28px;
             border: 1px solid #222;
-            box-shadow: 0 20px 40px rgba(54,255,0,0.1), 0 8px 20px rgba(0,0,0,0.8);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -45,19 +65,19 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 12px 0 4px;
+            padding: 8px 0 2px; /* уменьшил отступы */
         }
         .logo-image {
-            max-height: 30px;
+            max-height: 21px; /* уменьшено на 30% от 30px */
             width: auto;
             filter: drop-shadow(0 0 8px #36FF00);
         }
 
         .segmented-control {
             display: flex;
-            padding: 8px 12px;
-            gap: 8px;
-            margin: 8px 16px;
+            padding: 4px 12px; /* уменьшил */
+            gap: 6px;
+            margin: 4px 16px; /* уменьшил */
         }
         .segmented-btn {
             flex: 1;
@@ -72,6 +92,7 @@
             transition: all 0.2s;
             cursor: pointer;
             letter-spacing: 0.5px;
+            /* тень убрана */
         }
         .segmented-btn.active {
             border-color: #36FF00;
@@ -93,20 +114,22 @@
         .screen {
             flex: 0 0 100%;
             scroll-snap-align: start;
-            padding: 12px 16px;
+            padding: 8px 16px; /* уменьшил */
             overflow-y: auto;
             height: 100%;
         }
 
+        /* Период-селектор с кнопками Today, Week, More */
         .period-selector {
             display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
+            gap: 6px;
+            margin-bottom: 8px; /* уменьшил */
             position: relative;
+            flex-wrap: wrap;
         }
         .period-btn {
             flex: 1;
-            padding: 10px 0;
+            padding: 8px 0; /* уменьшил */
             background: transparent;
             border: 2px solid #444;
             color: #aaa;
@@ -115,14 +138,57 @@
             border-radius: 40px;
             cursor: pointer;
             transition: 0.2s;
+            min-width: 60px;
+            /* тень убрана */
         }
         .period-btn.active {
             border-color: #36FF00;
             color: #36FF00;
         }
-        .month-dropdown {
+
+        /* Блок дополнительных фильтров (Month/Year) */
+        .more-filters {
+            width: 100%;
+            display: none;
+            gap: 8px;
+            margin-top: 4px;
+            margin-bottom: 8px;
+        }
+        .more-filters.show {
+            display: flex;
+        }
+        .filter-select {
+            flex: 1;
+            position: relative;
+        }
+        .filter-button {
+            width: 100%;
+            padding: 10px 12px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 40px;
+            font-size: 14px;
+            color: #fff;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            /* тень убрана */
+        }
+        .filter-button .arrow {
+            width: 14px;
+            height: 14px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23aaaaaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        .filter-button.open .arrow {
+            transform: rotate(180deg);
+        }
+        .filter-dropdown {
             position: absolute;
-            top: calc(100% + 4px);
+            top: calc(100% + 2px);
             left: 0;
             right: 0;
             background: #1a1a1a;
@@ -133,23 +199,24 @@
             z-index: 20;
             display: none;
         }
-        .month-dropdown.show {
+        .filter-dropdown.show {
             display: block;
         }
-        .month-option {
-            padding: 12px;
+        .filter-option {
+            padding: 10px;
             cursor: pointer;
             color: #fff;
             text-align: center;
             border-bottom: 1px solid #2a2a2a;
+            font-size: 14px;
         }
-        .month-option:last-child {
+        .filter-option:last-child {
             border-bottom: none;
         }
-        .month-option:hover {
+        .filter-option:hover {
             background: #333;
         }
-        .month-option.selected {
+        .filter-option.selected {
             background: #36FF00;
             color: #000;
         }
@@ -157,11 +224,11 @@
         .custom-select {
             position: relative;
             width: 100%;
-            margin-bottom: 12px;
+            margin-bottom: 10px; /* уменьшил */
         }
         .select-button {
             width: 100%;
-            padding: 16px 14px;
+            padding: 14px 12px; /* уменьшил */
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 16px;
@@ -172,6 +239,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            /* тень убрана */
         }
         .select-button .arrow {
             width: 16px;
@@ -195,13 +263,12 @@
             overflow-y: auto;
             z-index: 10;
             display: none;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.8);
         }
         .select-dropdown.show {
             display: block;
         }
         .select-option {
-            padding: 14px;
+            padding: 12px;
             cursor: pointer;
             color: #fff;
             transition: background 0.1s;
@@ -224,7 +291,7 @@
 
         input[type="number"], textarea {
             width: 100%;
-            padding: 16px 14px;
+            padding: 14px 12px; /* уменьшил */
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 16px;
@@ -233,20 +300,20 @@
             outline: none;
             transition: all 0.2s ease;
             font-family: inherit;
-            margin-bottom: 12px;
+            margin-bottom: 10px; /* уменьшил */
         }
         input[type="number"]:focus, textarea:focus {
             border-color: #FFDD21;
             box-shadow: 0 0 0 3px rgba(255, 221, 33, 0.2);
         }
         textarea {
-            min-height: 80px;
+            min-height: 70px;
             resize: vertical;
         }
 
         button {
             width: 100%;
-            padding: 18px;
+            padding: 16px; /* уменьшил */
             background: #36FF00;
             border: none;
             border-radius: 60px;
@@ -255,19 +322,18 @@
             color: #000;
             cursor: pointer;
             transition: 0.2s;
-            box-shadow: 0 8px 20px rgba(54, 255, 0, 0.3);
-            margin-top: 8px;
+            margin-top: 6px; /* уменьшил */
+            /* тень убрана */
         }
         button:disabled {
             background: #2a2a2a;
             color: #666;
-            box-shadow: none;
             cursor: not-allowed;
         }
 
         .status {
-            margin-top: 12px;
-            padding: 12px;
+            margin-top: 8px;
+            padding: 10px;
             border-radius: 60px;
             text-align: center;
             display: none;
@@ -290,8 +356,8 @@
         .transaction-item {
             background: #1a1a1a;
             border-radius: 16px;
-            padding: 12px;
-            margin-bottom: 8px;
+            padding: 10px;
+            margin-bottom: 6px;
             border: 1px solid #333;
             user-select: none;
         }
@@ -304,8 +370,8 @@
         .transaction-left {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px 10px;
-            font-size: 15px;
+            gap: 6px 8px;
+            font-size: 14px;
         }
         .transaction-type {
             color: #36FF00;
@@ -319,11 +385,11 @@
         }
         .transaction-amount {
             font-weight: 600;
-            font-size: 16px;
+            font-size: 15px;
         }
         .edit-icon {
-            margin-left: 8px;
-            font-size: 18px;
+            margin-left: 6px;
+            font-size: 16px;
             cursor: pointer;
             opacity: 0.8;
             transition: opacity 0.2s;
@@ -333,7 +399,7 @@
         }
         .transaction-comment {
             color: #aaa;
-            font-size: 13px;
+            font-size: 12px;
             margin-top: 4px;
             padding-top: 4px;
             border-top: 1px dashed #333;
@@ -341,20 +407,20 @@
         }
         .transaction-date {
             color: #888;
-            font-size: 12px;
+            font-size: 11px;
             margin-top: 4px;
             text-align: right;
         }
 
         .summary-block {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
         .summary-type {
             background: #222;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-radius: 30px;
-            margin-bottom: 8px;
-            font-size: 18px;
+            margin-bottom: 6px;
+            font-size: 16px;
             font-weight: 600;
             color: #36FF00;
             display: flex;
@@ -364,27 +430,27 @@
             color: #fff;
         }
         .summary-account {
-            margin-left: 16px;
-            margin-bottom: 6px;
+            margin-left: 12px;
+            margin-bottom: 4px;
         }
         .summary-account-header {
             background: #1a1a1a;
-            padding: 8px 14px;
+            padding: 6px 12px;
             border-radius: 20px;
             margin-bottom: 4px;
-            font-size: 16px;
+            font-size: 14px;
             color: #FFDD21;
             display: flex;
             justify-content: space-between;
         }
         .summary-article {
-            margin-left: 32px;
-            padding: 6px 12px;
+            margin-left: 24px;
+            padding: 4px 10px;
             display: flex;
             justify-content: space-between;
             color: #fff;
             border-bottom: 1px solid #2a2a2a;
-            font-size: 14px;
+            font-size: 13px;
         }
         .summary-article-amount {
             color: #36FF00;
@@ -393,12 +459,12 @@
 
         .tab-bar {
             display: flex;
-            gap: 8px;
-            margin: 12px 0;
+            gap: 6px;
+            margin: 8px 0;
         }
         .tab {
             flex: 1;
-            padding: 10px;
+            padding: 8px;
             text-align: center;
             background: transparent;
             border: 2px solid #444;
@@ -413,8 +479,8 @@
         }
 
         .chart-container {
-            margin: 16px 0;
-            height: 250px;
+            margin: 12px 0;
+            height: 220px;
             position: relative;
         }
 
@@ -437,30 +503,30 @@
             background: #0c0c0c;
             border: 2px solid #36FF00;
             border-radius: 28px;
-            padding: 20px;
+            padding: 16px;
             width: 90%;
-            max-width: 380px;
+            max-width: 360px;
             max-height: 80vh;
             overflow-y: auto;
         }
         .modal-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
             color: #36FF00;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             text-align: center;
         }
         .modal-buttons {
             display: flex;
-            gap: 12px;
-            margin-top: 20px;
+            gap: 8px;
+            margin-top: 16px;
         }
         .modal-btn {
             flex: 1;
-            padding: 14px;
+            padding: 12px;
             border: none;
             border-radius: 40px;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
         }
@@ -479,7 +545,12 @@
     </style>
 </head>
 <body>
-    <div class="app-container">
+    <!-- Экран загрузки -->
+    <div class="loading-screen" id="loadingScreen">
+        <img src="logo.png" alt="Finance Logo" class="loading-logo">
+    </div>
+
+    <div class="app-container" id="appContainer" style="display: none;">
         <div class="logo-area">
             <img src="logo.png" alt="Finance Logo" class="logo-image">
         </div>
@@ -528,12 +599,26 @@
                 <div class="period-selector" id="historyPeriod">
                     <button class="period-btn" data-period="today">Today</button>
                     <button class="period-btn" data-period="week">Week</button>
-                    <button class="period-btn" id="historyMonthBtn">Month</button>
-                    <button class="period-btn" data-period="all">All</button>
+                    <button class="period-btn" id="historyMoreBtn">More</button>
                 </div>
-                <div class="month-dropdown" id="historyMonthDropdown"></div>
+                <div class="more-filters" id="historyMoreFilters">
+                    <div class="filter-select" id="historyMonthContainer">
+                        <div class="filter-button" id="historyMonthButton">
+                            <span id="historyMonthText">Month</span>
+                            <span class="arrow"></span>
+                        </div>
+                        <div class="filter-dropdown" id="historyMonthDropdown"></div>
+                    </div>
+                    <div class="filter-select" id="historyYearContainer">
+                        <div class="filter-button" id="historyYearButton">
+                            <span id="historyYearText">Year</span>
+                            <span class="arrow"></span>
+                        </div>
+                        <div class="filter-dropdown" id="historyYearDropdown"></div>
+                    </div>
+                </div>
                 <div id="historyList"></div>
-                <div id="historyStatus" style="text-align: center; padding: 20px; color: #aaa;"></div>
+                <div id="historyStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
 
             <!-- Экран 3: SUM -->
@@ -541,10 +626,24 @@
                 <div class="period-selector" id="summaryPeriod">
                     <button class="period-btn" data-period="today">Today</button>
                     <button class="period-btn" data-period="week">Week</button>
-                    <button class="period-btn" id="summaryMonthBtn">Month</button>
-                    <button class="period-btn" data-period="all">All</button>
+                    <button class="period-btn" id="summaryMoreBtn">More</button>
                 </div>
-                <div class="month-dropdown" id="summaryMonthDropdown"></div>
+                <div class="more-filters" id="summaryMoreFilters">
+                    <div class="filter-select" id="summaryMonthContainer">
+                        <div class="filter-button" id="summaryMonthButton">
+                            <span id="summaryMonthText">Month</span>
+                            <span class="arrow"></span>
+                        </div>
+                        <div class="filter-dropdown" id="summaryMonthDropdown"></div>
+                    </div>
+                    <div class="filter-select" id="summaryYearContainer">
+                        <div class="filter-button" id="summaryYearButton">
+                            <span id="summaryYearText">Year</span>
+                            <span class="arrow"></span>
+                        </div>
+                        <div class="filter-dropdown" id="summaryYearDropdown"></div>
+                    </div>
+                </div>
                 <div class="tab-bar" id="summaryTabs">
                     <button class="tab active" data-tab="table">Таблица</button>
                     <button class="tab" data-tab="charts">Графики</button>
@@ -554,9 +653,9 @@
                     <div class="chart-container">
                         <canvas id="chartTypes"></canvas>
                     </div>
-                    <div id="chartDetail" style="margin-top: 16px; color: #aaa; text-align: center;">Нажмите на сегмент для детализации</div>
+                    <div id="chartDetail" style="margin-top: 12px; color: #aaa; text-align: center;">Нажмите на сегмент для детализации</div>
                 </div>
-                <div id="summaryStatus" style="text-align: center; padding: 20px; color: #aaa;"></div>
+                <div id="summaryStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
         </div>
     </div>
@@ -566,10 +665,10 @@
         <div class="modal-content">
             <div class="modal-title" id="modalTitle">Редактирование</div>
             <div id="editForm">
-                <div style="margin-bottom: 16px; color:#aaa;">
-                    <div id="editDisplayType" style="margin-bottom:8px;"></div>
-                    <div id="editDisplayAccount" style="margin-bottom:8px;"></div>
-                    <div id="editDisplayArticle" style="margin-bottom:8px;"></div>
+                <div style="margin-bottom: 12px; color:#aaa;">
+                    <div id="editDisplayType" style="margin-bottom:6px;"></div>
+                    <div id="editDisplayAccount" style="margin-bottom:6px;"></div>
+                    <div id="editDisplayArticle" style="margin-bottom:6px;"></div>
                 </div>
                 <input type="number" id="editAmount" placeholder="Сумма" min="0" step="0.01" />
                 <textarea id="editComment" placeholder="Комментарий"></textarea>
@@ -588,15 +687,21 @@
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
-        let currentFilterHistory = { period: 'today' }; // period может быть 'today', 'week', 'all', или объект с month
+        let currentFilterHistory = { period: 'today' }; // может быть 'today', 'week', или объект с month/year
         let currentFilterSummary = { period: 'today' };
         let activeDropdown = null;
+        let activeFilterDropdown = null;
         let currentArticleSign = 'plus';
         let chartInstances = {};
         let currentSummaryData = null;
         let currentEditRow = null;
         let currentEditSign = 'plus';
         let allMonths = [];
+        let allYears = [];
+
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА ЗАГРУЗКИ =====
+        const loadingScreen = document.getElementById('loadingScreen');
+        const appContainer = document.getElementById('appContainer');
 
         // ===== ЭЛЕМЕНТЫ ЭКРАНА ADD =====
         const typeSelect = document.getElementById('typeSelect');
@@ -620,10 +725,26 @@
         // ===== ЭЛЕМЕНТЫ ФИЛЬТРОВ =====
         const historyPeriodBtns = document.querySelectorAll('#historyPeriod .period-btn');
         const summaryPeriodBtns = document.querySelectorAll('#summaryPeriod .period-btn');
-        const historyMonthBtn = document.getElementById('historyMonthBtn');
-        const summaryMonthBtn = document.getElementById('summaryMonthBtn');
+        const historyMoreBtn = document.getElementById('historyMoreBtn');
+        const summaryMoreBtn = document.getElementById('summaryMoreBtn');
+        const historyMoreFilters = document.getElementById('historyMoreFilters');
+        const summaryMoreFilters = document.getElementById('summaryMoreFilters');
+
+        // Month
+        const historyMonthButton = document.getElementById('historyMonthButton');
+        const historyMonthText = document.getElementById('historyMonthText');
         const historyMonthDropdown = document.getElementById('historyMonthDropdown');
+        const summaryMonthButton = document.getElementById('summaryMonthButton');
+        const summaryMonthText = document.getElementById('summaryMonthText');
         const summaryMonthDropdown = document.getElementById('summaryMonthDropdown');
+
+        // Year
+        const historyYearButton = document.getElementById('historyYearButton');
+        const historyYearText = document.getElementById('historyYearText');
+        const historyYearDropdown = document.getElementById('historyYearDropdown');
+        const summaryYearButton = document.getElementById('summaryYearButton');
+        const summaryYearText = document.getElementById('summaryYearText');
+        const summaryYearDropdown = document.getElementById('summaryYearDropdown');
 
         // ===== ЭЛЕМЕНТЫ ЭКРАНА FLOW =====
         const historyListDiv = document.getElementById('historyList');
@@ -659,20 +780,24 @@
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
         }
 
+        function getCurrentYear() {
+            return new Date().getFullYear().toString();
+        }
+
         function formatMonth(monthStr) {
             const [year, month] = monthStr.split('-');
             const date = new Date(parseInt(year), parseInt(month)-1, 1);
             return date.toLocaleString('en', { month: 'short' }).toUpperCase();
         }
 
-        // ===== ЗАГРУЗКА МЕСЯЦЕВ ИЗ ЛИСТА MONTHS =====
+        // ===== ЗАГРУЗКА МЕСЯЦЕВ И ГОДОВ =====
         async function loadMonths() {
             try {
                 const url = `${APPS_SCRIPT_URL}?action=months`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                allMonths = data; // ожидаем массив строк типа "2026-03"
+                allMonths = data; // массив строк "2026-03"
                 console.log('Months loaded', allMonths);
             } catch (e) {
                 console.error('Failed to load months', e);
@@ -680,17 +805,38 @@
             }
         }
 
+        async function loadYears() {
+            try {
+                const url = `${APPS_SCRIPT_URL}?action=years`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                allYears = data; // массив строк "2026"
+                console.log('Years loaded', allYears);
+            } catch (e) {
+                console.error('Failed to load years', e);
+                allYears = [getCurrentYear()];
+            }
+        }
+
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
-            await loadMonths();
-            await loadCategories();
+            // Показываем загрузку
+            loadingScreen.classList.remove('hidden');
+            
+            await Promise.all([loadMonths(), loadYears(), loadCategories()]);
+            
+            // Скрываем загрузку, показываем приложение
+            loadingScreen.classList.add('hidden');
+            appContainer.style.display = 'flex';
+            
             attachNavigationListeners();
             attachPeriodListeners();
+            attachFilterListeners();
             attachSelectListeners();
             attachModalListeners();
             attachTabListeners();
 
-            // Устанавливаем активную кнопку Today
             setActivePeriod(historyPeriodBtns, 'today');
             setActivePeriod(summaryPeriodBtns, 'today');
             loadHistory();
@@ -702,8 +848,6 @@
 
         function setActivePeriod(btns, period) {
             btns.forEach(btn => {
-                // Для кнопки Month не используем активное состояние через period
-                if (btn.id && btn.id.includes('MonthBtn')) return;
                 if (btn.dataset.period === period) {
                     btn.classList.add('active');
                 } else {
@@ -737,82 +881,160 @@
 
         // ===== ФИЛЬТРЫ =====
         function attachPeriodListeners() {
-            // Кнопки Today, Week, All
+            // Today / Week
             historyPeriodBtns.forEach(btn => {
-                if (btn.id && btn.id.includes('MonthBtn')) return;
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     currentFilterHistory = { period };
                     setActivePeriod(historyPeriodBtns, period);
+                    // Скрываем More фильтры
+                    historyMoreFilters.classList.remove('show');
+                    historyMoreBtn.classList.remove('active');
+                    // Сбрасываем выбранные месяц/год
+                    historyMonthText.textContent = 'Month';
+                    historyYearText.textContent = 'Year';
                     loadHistory();
                 });
             });
 
             summaryPeriodBtns.forEach(btn => {
-                if (btn.id && btn.id.includes('MonthBtn')) return;
                 btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     currentFilterSummary = { period };
                     setActivePeriod(summaryPeriodBtns, period);
+                    summaryMoreFilters.classList.remove('show');
+                    summaryMoreBtn.classList.remove('active');
+                    summaryMonthText.textContent = 'Month';
+                    summaryYearText.textContent = 'Year';
                     loadSummary();
                     loadChartData();
                 });
             });
 
-            // Кнопки Month (открывают дропдаун)
-            historyMonthBtn.addEventListener('click', (e) => {
+            // More buttons
+            historyMoreBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                openMonthDropdown('history');
+                historyMoreFilters.classList.toggle('show');
+                if (historyMoreFilters.classList.contains('show')) {
+                    historyMoreBtn.classList.add('active');
+                    // Убираем активность с Today/Week
+                    setActivePeriod(historyPeriodBtns, null);
+                } else {
+                    historyMoreBtn.classList.remove('active');
+                }
             });
 
-            summaryMonthBtn.addEventListener('click', (e) => {
+            summaryMoreBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                openMonthDropdown('summary');
+                summaryMoreFilters.classList.toggle('show');
+                if (summaryMoreFilters.classList.contains('show')) {
+                    summaryMoreBtn.classList.add('active');
+                    setActivePeriod(summaryPeriodBtns, null);
+                } else {
+                    summaryMoreBtn.classList.remove('active');
+                }
             });
         }
 
-        function openMonthDropdown(target) {
-            console.log('openMonthDropdown', target, allMonths);
-            const dropdown = target === 'history' ? historyMonthDropdown : summaryMonthDropdown;
-            
-            // Закрываем все другие дропдауны
-            document.querySelectorAll('.month-dropdown').forEach(d => d.classList.remove('show'));
-            
-            // Заполняем опции из allMonths
-            dropdown.innerHTML = '';
-            const months = allMonths.length ? allMonths : [getCurrentMonth()];
-            months.forEach(m => {
-                const div = document.createElement('div');
-                div.className = 'month-option';
-                div.textContent = formatMonth(m);
-                // Можно подсветить текущий месяц, если он уже выбран
-                const currentMonth = target === 'history' ? currentFilterHistory.month : currentFilterSummary.month;
-                if (m === currentMonth) div.classList.add('selected');
-                div.addEventListener('click', () => {
-                    if (target === 'history') {
-                        currentFilterHistory = { period: 'month', month: m };
-                        // Убираем активный класс с других кнопок
-                        setActivePeriod(historyPeriodBtns, null);
-                        historyMonthBtn.classList.add('active'); // можно добавить активный класс на Month
-                        loadHistory();
-                    } else {
-                        currentFilterSummary = { period: 'month', month: m };
-                        setActivePeriod(summaryPeriodBtns, null);
-                        summaryMonthBtn.classList.add('active');
-                        loadSummary();
-                        loadChartData();
-                    }
-                    dropdown.classList.remove('show');
-                });
-                dropdown.appendChild(div);
+        // ===== ФИЛЬТРЫ МЕСЯЦ/ГОД =====
+        function attachFilterListeners() {
+            // Month dropdowns
+            setupFilterDropdown(historyMonthButton, historyMonthDropdown, allMonths, historyMonthText, (value) => {
+                historyMonthText.textContent = formatMonth(value);
+                applyHistoryFilter();
             });
-            dropdown.classList.add('show');
+            setupFilterDropdown(summaryMonthButton, summaryMonthDropdown, allMonths, summaryMonthText, (value) => {
+                summaryMonthText.textContent = formatMonth(value);
+                applySummaryFilter();
+            });
+
+            // Year dropdowns
+            setupFilterDropdown(historyYearButton, historyYearDropdown, allYears, historyYearText, (value) => {
+                historyYearText.textContent = value;
+                applyHistoryFilter();
+            });
+            setupFilterDropdown(summaryYearButton, summaryYearDropdown, allYears, summaryYearText, (value) => {
+                summaryYearText.textContent = value;
+                applySummaryFilter();
+            });
+        }
+
+        function setupFilterDropdown(button, dropdown, items, textElement, onSelect) {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Закрываем другие
+                closeAllFilterDropdowns();
+                dropdown.innerHTML = '';
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'filter-option';
+                    div.textContent = item.includes('-') ? formatMonth(item) : item;
+                    div.addEventListener('click', () => {
+                        onSelect(item);
+                        dropdown.classList.remove('show');
+                        button.classList.remove('open');
+                    });
+                    dropdown.appendChild(div);
+                });
+                dropdown.classList.add('show');
+                button.classList.add('open');
+                activeFilterDropdown = { dropdown, button };
+            });
+        }
+
+        function closeAllFilterDropdowns() {
+            if (activeFilterDropdown) {
+                activeFilterDropdown.dropdown.classList.remove('show');
+                activeFilterDropdown.button.classList.remove('open');
+                activeFilterDropdown = null;
+            }
+        }
+
+        function applyHistoryFilter() {
+            const month = historyMonthText.textContent !== 'Month' ? getMonthValueFromText(historyMonthText.textContent) : null;
+            const year = historyYearText.textContent !== 'Year' ? historyYearText.textContent : null;
+            
+            if (month && year) {
+                currentFilterHistory = { period: 'month', month: month };
+            } else if (year) {
+                currentFilterHistory = { period: 'year', year: year };
+            } else if (month) {
+                currentFilterHistory = { period: 'month', month: month };
+            } else {
+                currentFilterHistory = { period: 'today' }; // fallback
+            }
+            loadHistory();
+        }
+
+        function applySummaryFilter() {
+            const month = summaryMonthText.textContent !== 'Month' ? getMonthValueFromText(summaryMonthText.textContent) : null;
+            const year = summaryYearText.textContent !== 'Year' ? summaryYearText.textContent : null;
+            
+            if (month && year) {
+                currentFilterSummary = { period: 'month', month: month };
+            } else if (year) {
+                currentFilterSummary = { period: 'year', year: year };
+            } else if (month) {
+                currentFilterSummary = { period: 'month', month: month };
+            } else {
+                currentFilterSummary = { period: 'today' };
+            }
+            loadSummary();
+            loadChartData();
+        }
+
+        function getMonthValueFromText(text) {
+            // Ищем в allMonths по отформатированному названию (неэффективно, но для демо сойдёт)
+            for (let m of allMonths) {
+                if (formatMonth(m) === text) return m;
+            }
+            return null;
         }
 
         // Закрытие дропдаунов при клике вне
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.period-btn') && !e.target.closest('.month-dropdown')) {
-                document.querySelectorAll('.month-dropdown').forEach(d => d.classList.remove('show'));
+            if (!e.target.closest('.filter-select') && !e.target.closest('.period-btn')) {
+                closeAllFilterDropdowns();
             }
         });
 
@@ -834,6 +1056,8 @@
             let url = `${APPS_SCRIPT_URL}?action=${action}`;
             if (filter.period === 'month' && filter.month) {
                 url += `&period=month&month=${filter.month}`;
+            } else if (filter.period === 'year' && filter.year) {
+                url += `&period=year&year=${filter.year}`;
             } else {
                 url += `&period=${filter.period}`;
             }
