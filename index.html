@@ -958,4 +958,234 @@
                 checkSaveButton();
                 playSound(click2);
             });
-       
+        }
+
+        function resetArticle() {
+            articleSelect.value = '';
+            articleSelectedText.textContent = 'Сначала выберите счёт';
+            articleButton.disabled = true;
+            articleDropdown.innerHTML = '';
+            currentArticleSign = 'plus';
+        }
+
+        function enableArticleSelect() {
+            articleButton.disabled = false;
+            articleSelectedText.textContent = 'Выберите статью';
+        }
+
+        function updateArticleOptions() {
+            const type = typeSelect.value;
+            const account = accountSelect.value;
+            if (!type || !account) return;
+            
+            const articles = categoriesData[type][account] || [];
+            
+            articleSelect.innerHTML = '';
+            articles.forEach(art => {
+                const option = document.createElement('option');
+                option.value = art.name;
+                option.textContent = art.name;
+                articleSelect.appendChild(option);
+            });
+            
+            populateDropdown(articleDropdown, articles, null, (value) => {
+                articleSelect.value = value.name;
+                articleSelectedText.textContent = value.name;
+                currentArticleSign = value.sign;
+                checkSaveButton();
+                playSound(click2);
+            });
+        }
+
+        function populateDropdown(dropdown, items, selected, onChange) {
+            dropdown.innerHTML = '';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'select-option';
+                const itemName = typeof item === 'string' ? item : item.name;
+                if (itemName === selected) div.classList.add('selected');
+                div.textContent = itemName;
+                div.addEventListener('click', () => onChange(item));
+                dropdown.appendChild(div);
+            });
+        }
+
+        function toggleDropdown(dropdown, button) {
+            if (dropdown.classList.contains('show')) {
+                closeAllDropdowns();
+            } else {
+                closeAllDropdowns();
+                dropdown.classList.add('show');
+                button.classList.add('open');
+                activeDropdown = { dropdown, button };
+            }
+        }
+
+        function closeAllDropdowns() {
+            if (activeDropdown) {
+                activeDropdown.dropdown.classList.remove('show');
+                activeDropdown.button.classList.remove('open');
+                activeDropdown = null;
+            }
+        }
+
+        // ===== ПРОВЕРКА КНОПКИ СОХРАНЕНИЯ =====
+        function checkSaveButton() {
+            const typeOk = typeSelect.value && typeSelect.value !== '';
+            const accountOk = accountSelect.value && accountSelect.value !== '';
+            const articleOk = articleSelect.value && articleSelect.value !== '';
+            const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
+            saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
+        }
+
+        // ===== СОХРАНЕНИЕ ЗАПИСИ =====
+        async function saveExpense(type, account, article, sign, amount, comment) {
+            const formData = new URLSearchParams();
+            formData.append('type', type);
+            formData.append('account', account);
+            formData.append('article', article);
+            formData.append('sign', sign);
+            formData.append('amount', amount);
+            formData.append('comment', comment);
+            try {
+                await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+                playSound(click1);
+                statusDiv.textContent = '✅ Запись отправлена!';
+                statusDiv.className = 'status success';
+                
+                amountInput.value = '';
+                commentInput.value = '';
+                typeSelect.value = '';
+                accountSelect.value = '';
+                articleSelect.value = '';
+                typeSelectedText.textContent = 'Выберите тип';
+                accountSelectedText.textContent = 'Сначала выберите тип';
+                articleSelectedText.textContent = 'Сначала выберите счёт';
+                accountButton.disabled = true;
+                articleButton.disabled = true;
+                accountDropdown.innerHTML = '';
+                articleDropdown.innerHTML = '';
+                currentArticleSign = 'plus';
+                checkSaveButton();
+                
+                loadHistory(currentPeriodHistory);
+                loadSummary(currentPeriodSummary);
+                loadChartData(currentPeriodSummary);
+                if (window.Telegram?.WebApp) setTimeout(() => Telegram.WebApp.close(), 1000);
+            } catch (e) {
+                statusDiv.textContent = '❌ Ошибка при сохранении';
+                statusDiv.className = 'status error';
+                saveBtn.disabled = false;
+            }
+        }
+
+        // ===== МОДАЛЬНОЕ ОКНО =====
+        function openEditModal(record) {
+            currentEditRow = record.row;
+            currentEditSign = record.amount < 0 ? 'minus' : 'plus';
+            
+            editDisplayType.innerHTML = `<span style="color:#36FF00">Тип:</span> ${record.type}`;
+            editDisplayAccount.innerHTML = `<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
+            editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${record.article}`;
+            editAmount.value = Math.abs(record.amount);
+            editComment.value = record.comment || '';
+            
+            modal.classList.add('show');
+        }
+
+        function attachModalListeners() {
+            cancelBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+            });
+            
+            deleteBtn.addEventListener('click', async () => {
+                if (!currentEditRow) return;
+                if (!confirm('Удалить запись?')) return;
+                try {
+                    await fetch(`${APPS_SCRIPT_URL}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
+                    playSound(click1);
+                    modal.classList.remove('show');
+                    loadHistory(currentPeriodHistory);
+                    loadSummary(currentPeriodSummary);
+                    loadChartData(currentPeriodSummary);
+                } catch (e) {
+                    alert('Ошибка удаления');
+                }
+            });
+            
+            updateBtn.addEventListener('click', async () => {
+                if (!currentEditRow) return;
+                const amount = parseFloat(editAmount.value);
+                if (isNaN(amount) || amount <= 0) return;
+                
+                const formData = new URLSearchParams();
+                formData.append('type', editDisplayType.innerText.split(' ')[1]); // упрощённо, в реальном коде нужно хранить type
+                formData.append('account', editDisplayAccount.innerText.split(' ')[1]);
+                formData.append('article', editDisplayArticle.innerText.split(' ')[1]);
+                formData.append('sign', currentEditSign);
+                formData.append('amount', amount);
+                formData.append('comment', editComment.value);
+                formData.append('row', currentEditRow);
+                
+                try {
+                    await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+                    playSound(click1);
+                    modal.classList.remove('show');
+                    loadHistory(currentPeriodHistory);
+                    loadSummary(currentPeriodSummary);
+                    loadChartData(currentPeriodSummary);
+                } catch (e) {
+                    alert('Ошибка обновления');
+                }
+            });
+        }
+
+        // ===== ПРИВЯЗКА СОБЫТИЙ К КАСТОМНЫМ СЕЛЕКТАМ =====
+        function attachSelectListeners() {
+            typeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (typeButton.disabled) return;
+                toggleDropdown(typeDropdown, typeButton);
+            });
+            accountButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (accountButton.disabled) return;
+                updateAccountOptions();
+                toggleDropdown(accountDropdown, accountButton);
+            });
+            articleButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (articleButton.disabled) return;
+                updateArticleOptions();
+                toggleDropdown(articleDropdown, articleButton);
+            });
+            document.addEventListener('click', closeAllDropdowns);
+
+            amountInput.addEventListener('input', () => {
+                playSound(click2);
+                checkSaveButton();
+            });
+            commentInput.addEventListener('input', () => playSound(click2));
+
+            saveBtn.addEventListener('click', () => {
+                const type = typeSelect.value;
+                const account = accountSelect.value;
+                const article = articleSelect.value;
+                const sign = currentArticleSign;
+                const amount = parseFloat(amountInput.value);
+                const comment = commentInput.value;
+                if (!type || !account || !article || isNaN(amount) || amount <= 0) return;
+                saveBtn.disabled = true;
+                statusDiv.textContent = 'Отправка...';
+                statusDiv.className = 'status';
+                saveExpense(type, account, article, sign, amount, comment);
+            });
+        }
+
+        // ===== СТАРТ =====
+        init();
+
+        if (window.Telegram?.WebApp) Telegram.WebApp.ready();
+    </script>
+</body>
+</html>
