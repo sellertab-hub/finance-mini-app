@@ -557,7 +557,7 @@
         </div>
 
         <div class="screens-container" id="screensContainer">
-            <!-- Экран ADD -->
+            <!-- Экран 1: ADD -->
             <div class="screen" id="screen0">
                 <div class="custom-select" id="typeSelectContainer">
                     <select id="typeSelect" class="native-select"></select>
@@ -589,7 +589,7 @@
                 <div id="statusMessage" class="status"></div>
             </div>
 
-            <!-- Экран FLOW -->
+            <!-- Экран 2: FLOW -->
             <div class="screen" id="screen1">
                 <div class="period-selector" id="historyPeriod">
                     <button class="period-btn" data-period="today">Today</button>
@@ -616,7 +616,7 @@
                 <div id="historyStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
 
-            <!-- Экран SUM -->
+            <!-- Экран 3: SUM -->
             <div class="screen" id="screen2">
                 <div class="period-selector" id="summaryPeriod">
                     <button class="period-btn" data-period="today">Today</button>
@@ -655,7 +655,7 @@
         </div>
     </div>
 
-    <!-- Модальное окно редактирования -->
+    <!-- Модальное окно для редактирования/удаления -->
     <div class="modal" id="editModal">
         <div class="modal-content">
             <div class="modal-title" id="modalTitle">Редактирование</div>
@@ -678,11 +678,11 @@
 
     <script>
         // ===== НАСТРОЙКИ =====
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ВАШ URL
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ НА ВАШ URL
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
-        let settingsData = null;
+        let settingsData = null; // { key: { firstText, secondText, enabled } }
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'today' };
         let activeDropdown = null;
@@ -695,14 +695,16 @@
         let allMonths = [];
         let allYears = [];
 
+        // Флаги включения полей из настроек
         let typeEnabled = true;
         let accountEnabled = true;
         let articleEnabled = true;
 
-        // ===== ЭЛЕМЕНТЫ =====
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА ЗАГРУЗКИ =====
         const loadingScreen = document.getElementById('loadingScreen');
         const appContainer = document.getElementById('appContainer');
 
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА ADD =====
         const typeSelect = document.getElementById('typeSelect');
         const accountSelect = document.getElementById('accountSelect');
         const articleSelect = document.getElementById('articleSelect');
@@ -721,10 +723,12 @@
         const accountSelectedText = document.getElementById('accountSelectedText');
         const articleSelectedText = document.getElementById('articleSelectedText');
 
+        // Контейнеры выпадающих списков (для скрытия)
         const typeContainer = document.getElementById('typeSelectContainer');
         const accountContainer = document.getElementById('accountSelectContainer');
         const articleContainer = document.getElementById('articleSelectContainer');
 
+        // ===== ЭЛЕМЕНТЫ ФИЛЬТРОВ =====
         const historyPeriodBtns = document.querySelectorAll('#historyPeriod .period-btn');
         const summaryPeriodBtns = document.querySelectorAll('#summaryPeriod .period-btn');
         const historyMoreBtn = document.getElementById('historyMoreBtn');
@@ -732,6 +736,7 @@
         const historyMoreFilters = document.getElementById('historyMoreFilters');
         const summaryMoreFilters = document.getElementById('summaryMoreFilters');
 
+        // Month
         const historyMonthButton = document.getElementById('historyMonthButton');
         const historyMonthText = document.getElementById('historyMonthText');
         const historyMonthDropdown = document.getElementById('historyMonthDropdown');
@@ -739,6 +744,7 @@
         const summaryMonthText = document.getElementById('summaryMonthText');
         const summaryMonthDropdown = document.getElementById('summaryMonthDropdown');
 
+        // Year
         const historyYearButton = document.getElementById('historyYearButton');
         const historyYearText = document.getElementById('historyYearText');
         const historyYearDropdown = document.getElementById('historyYearDropdown');
@@ -746,9 +752,11 @@
         const summaryYearText = document.getElementById('summaryYearText');
         const summaryYearDropdown = document.getElementById('summaryYearDropdown');
 
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА FLOW =====
         const historyListDiv = document.getElementById('historyList');
         const historyStatus = document.getElementById('historyStatus');
 
+        // ===== ЭЛЕМЕНТЫ ЭКРАНА SUM =====
         const summaryContentDiv = document.getElementById('summaryTable');
         const summaryChartsDiv = document.getElementById('summaryCharts');
         const summaryStatus = document.getElementById('summaryStatus');
@@ -756,6 +764,7 @@
         const chartCanvas = document.getElementById('chartTypes');
         const chartDetailDiv = document.getElementById('chartDetail');
 
+        // ===== ЭЛЕМЕНТЫ МОДАЛЬНОГО ОКНА =====
         const modal = document.getElementById('editModal');
         const modalTitle = document.getElementById('modalTitle');
         const editAmount = document.getElementById('editAmount');
@@ -767,95 +776,110 @@
         const cancelBtn = document.getElementById('cancelBtn');
         const updateBtn = document.getElementById('updateBtn');
 
+        // ===== ЭЛЕМЕНТЫ НАВИГАЦИИ =====
         const screensContainer = document.getElementById('screensContainer');
         const segButtons = document.querySelectorAll('.segmented-btn');
 
-        // ===== ВСПОМОГАТЕЛЬНЫЕ =====
+        // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
         function getCurrentMonth() {
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
         }
+
         function getCurrentYear() {
             return new Date().getFullYear().toString();
         }
+
         function formatMonth(monthStr) {
             const [year, month] = monthStr.split('-');
             const date = new Date(parseInt(year), parseInt(month)-1, 1);
             return date.toLocaleString('en', { month: 'short' }).toUpperCase();
         }
 
-        // ===== ЗАГРУЗКИ =====
+        // ===== ЗАГРУЗКА ДАННЫХ =====
         async function loadMonths() {
             try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=months');
+                const url = `${APPS_SCRIPT_URL}?action=months`;
+                const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 allMonths = data;
+                console.log('Months loaded', allMonths);
             } catch (e) {
-                console.error(e);
+                console.error('Failed to load months', e);
                 allMonths = [getCurrentMonth()];
             }
         }
+
         async function loadYears() {
             try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=years');
+                const url = `${APPS_SCRIPT_URL}?action=years`;
+                const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 allYears = data;
+                console.log('Years loaded', allYears);
             } catch (e) {
-                console.error(e);
+                console.error('Failed to load years', e);
                 allYears = [getCurrentYear()];
             }
         }
+
         async function loadSettings() {
             try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=settings');
+                const url = `${APPS_SCRIPT_URL}?action=settings`;
+                const res = await fetch(url);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 settingsData = data;
+                console.log('Settings loaded', settingsData);
                 applySettings();
             } catch (e) {
-                console.error(e);
-            }
-        }
-        async function loadCategories() {
-            try {
-                const res = await fetch(APPS_SCRIPT_URL);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                categoriesData = data;
-                populateTypeDropdown();
-            } catch (e) {
-                console.error(e);
-                typeSelectedText.textContent = 'Ошибка загрузки';
+                console.error('Failed to load settings', e);
             }
         }
 
         function applySettings() {
             if (!settingsData) return;
+            
+            // Тип
             if (settingsData.type) {
                 typeEnabled = settingsData.type.enabled;
                 typeContainer.style.display = typeEnabled ? 'block' : 'none';
+                if (settingsData.type.secondText) {
+                    // Запомним текст для использования позже
+                }
             }
+            // Счёт
             if (settingsData.account) {
                 accountEnabled = settingsData.account.enabled;
                 accountContainer.style.display = accountEnabled ? 'block' : 'none';
-                if (settingsData.account.firstText) accountSelectedText.textContent = settingsData.account.firstText;
+                if (settingsData.account.firstText) {
+                    accountSelectedText.textContent = settingsData.account.firstText;
+                }
+                if (settingsData.account.secondText) {
+                    // для активного состояния
+                }
             }
+            // Статья
             if (settingsData.article) {
                 articleEnabled = settingsData.article.enabled;
                 articleContainer.style.display = articleEnabled ? 'block' : 'none';
-                if (settingsData.article.firstText) articleSelectedText.textContent = settingsData.article.firstText;
+                if (settingsData.article.firstText) {
+                    articleSelectedText.textContent = settingsData.article.firstText;
+                }
             }
         }
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
             loadingScreen.classList.remove('hidden');
+            
             await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
+            
             loadingScreen.classList.add('hidden');
             appContainer.style.display = 'flex';
-
+            
             attachNavigationListeners();
             attachPeriodListeners();
             attachFilterListeners();
@@ -863,6 +887,7 @@
             attachModalListeners();
             attachTabListeners();
 
+            // Устанавливаем начальное состояние (Today)
             setActivePeriod(historyPeriodBtns, 'today');
             setActivePeriod(summaryPeriodBtns, 'today');
             loadHistory();
@@ -882,6 +907,19 @@
             });
         }
 
+        // ===== НАВИГАЦИЯ =====
+        function attachNavigationListeners() {
+            segButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const screenIndex = btn.dataset.screen;
+                    screensContainer.scrollTo({
+                        left: screensContainer.clientWidth * screenIndex,
+                        behavior: 'smooth'
+                    });
+                });
+            });
+        }
+
         function syncSegmentedButtons() {
             const scrollLeft = screensContainer.scrollLeft;
             const width = screensContainer.clientWidth;
@@ -894,40 +932,50 @@
 
         // ===== ФИЛЬТРЫ =====
         function attachPeriodListeners() {
+            // Today / Week
             historyPeriodBtns.forEach(btn => {
                 if (btn.id && btn.id.includes('MoreBtn')) return;
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     currentFilterHistory = { period };
                     setActivePeriod(historyPeriodBtns, period);
+                    // Закрываем More фильтры, если они открыты
                     historyMoreFilters.classList.remove('show');
+                    historyMoreBtn.classList.remove('active');
+                    // Сбрасываем тексты и подсветку Month/Year
                     resetMonthYear('history');
                     loadHistory();
                 });
             });
+
             summaryPeriodBtns.forEach(btn => {
                 if (btn.id && btn.id.includes('MoreBtn')) return;
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', (e) => {
                     const period = btn.dataset.period;
                     currentFilterSummary = { period };
                     setActivePeriod(summaryPeriodBtns, period);
                     summaryMoreFilters.classList.remove('show');
+                    summaryMoreBtn.classList.remove('active');
                     resetMonthYear('summary');
                     loadSummary();
                     loadChartData();
                 });
             });
 
+            // More buttons
             historyMoreBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const isActive = historyMoreFilters.classList.contains('show');
                 if (isActive) {
-                    historyMoreFilters.classList.remove('show');
+                    // Повторный клик: сбрасываем фильтры, но панель остаётся открытой
                     resetMonthYear('history');
                     currentFilterHistory = { period: 'all' };
                     loadHistory();
                 } else {
+                    // Открываем панель, показываем все записи
                     historyMoreFilters.classList.add('show');
+                    historyMoreBtn.classList.add('active');
+                    setActivePeriod(historyPeriodBtns, null);
                     currentFilterHistory = { period: 'all' };
                     loadHistory();
                 }
@@ -937,13 +985,14 @@
                 e.stopPropagation();
                 const isActive = summaryMoreFilters.classList.contains('show');
                 if (isActive) {
-                    summaryMoreFilters.classList.remove('show');
                     resetMonthYear('summary');
                     currentFilterSummary = { period: 'all' };
                     loadSummary();
                     loadChartData();
                 } else {
                     summaryMoreFilters.classList.add('show');
+                    summaryMoreBtn.classList.add('active');
+                    setActivePeriod(summaryPeriodBtns, null);
                     currentFilterSummary = { period: 'all' };
                     loadSummary();
                     loadChartData();
@@ -967,20 +1016,23 @@
 
         // ===== ФИЛЬТРЫ МЕСЯЦ/ГОД =====
         function attachFilterListeners() {
+            // Month dropdowns
             setupFilterDropdown(historyMonthButton, historyMonthDropdown, allMonths, historyMonthText, (value) => {
                 historyMonthText.textContent = formatMonth(value);
                 historyMonthButton.classList.add('active');
-                applyHistoryFilter();
-            });
-            setupFilterDropdown(historyYearButton, historyYearDropdown, allYears, historyYearText, (value) => {
-                historyYearText.textContent = value;
-                historyYearButton.classList.add('active');
                 applyHistoryFilter();
             });
             setupFilterDropdown(summaryMonthButton, summaryMonthDropdown, allMonths, summaryMonthText, (value) => {
                 summaryMonthText.textContent = formatMonth(value);
                 summaryMonthButton.classList.add('active');
                 applySummaryFilter();
+            });
+
+            // Year dropdowns
+            setupFilterDropdown(historyYearButton, historyYearDropdown, allYears, historyYearText, (value) => {
+                historyYearText.textContent = value;
+                historyYearButton.classList.add('active');
+                applyHistoryFilter();
             });
             setupFilterDropdown(summaryYearButton, summaryYearDropdown, allYears, summaryYearText, (value) => {
                 summaryYearText.textContent = value;
@@ -1022,6 +1074,7 @@
         function applyHistoryFilter() {
             const month = historyMonthText.textContent !== 'Month' ? getMonthValueFromText(historyMonthText.textContent) : null;
             const year = historyYearText.textContent !== 'Year' ? historyYearText.textContent : null;
+            
             if (month && year) {
                 currentFilterHistory = { period: 'month', month: month };
             } else if (year) {
@@ -1037,6 +1090,7 @@
         function applySummaryFilter() {
             const month = summaryMonthText.textContent !== 'Month' ? getMonthValueFromText(summaryMonthText.textContent) : null;
             const year = summaryYearText.textContent !== 'Year' ? summaryYearText.textContent : null;
+            
             if (month && year) {
                 currentFilterSummary = { period: 'month', month: month };
             } else if (year) {
@@ -1057,6 +1111,7 @@
             return null;
         }
 
+        // Закрытие дропдаунов при клике вне
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.filter-select') && !e.target.closest('.period-btn')) {
                 closeAllFilterDropdowns();
@@ -1064,6 +1119,19 @@
         });
 
         // ===== ЗАГРУЗКА ДАННЫХ =====
+        async function loadCategories() {
+            try {
+                const res = await fetch(APPS_SCRIPT_URL);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                categoriesData = data;
+                populateTypeDropdown();
+            } catch (e) {
+                console.error(e);
+                typeSelectedText.textContent = 'Ошибка загрузки';
+            }
+        }
+
         function buildUrl(action, filter) {
             let url = `${APPS_SCRIPT_URL}?action=${action}`;
             if (filter.period === 'month' && filter.month) {
@@ -1111,7 +1179,7 @@
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 currentSummaryData = data;
-                if (summaryChartsDiv.style.display === 'block') {
+                if (document.getElementById('summaryCharts').style.display === 'block') {
                     renderCharts(data);
                 }
             } catch (e) {
@@ -1119,7 +1187,7 @@
             }
         }
 
-        // ===== ОТОБРАЖЕНИЕ =====
+        // ===== ОТОБРАЖЕНИЕ ИСТОРИИ =====
         function renderHistory(records) {
             historyStatus.textContent = '';
             if (!records.length) {
@@ -1157,6 +1225,7 @@
             });
         }
 
+        // ===== ОТОБРАЖЕНИЕ ИТОГОВ (ТАБЛИЦА) =====
         function renderSummary(summary) {
             summaryStatus.textContent = '';
             if (Object.keys(summary).length === 0) {
@@ -1196,12 +1265,15 @@
             summaryContentDiv.innerHTML = html;
         }
 
+        // ===== ГРАФИКИ =====
         function renderCharts(data) {
             if (chartInstances.types) chartInstances.types.destroy();
+            
             const typesData = {};
             for (let [type, val] of Object.entries(data.types)) {
                 if (Math.abs(val) > 0.01) typesData[type] = val;
             }
+            
             const ctx = chartCanvas.getContext('2d');
             chartInstances.types = new Chart(ctx, {
                 type: 'pie',
@@ -1217,7 +1289,9 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#fff' } } },
+                    plugins: {
+                        legend: { labels: { color: '#fff' } }
+                    },
                     onClick: (event, item) => {
                         if (item.length > 0) {
                             const index = item[0].dataIndex;
@@ -1239,7 +1313,7 @@
             chartDetailDiv.innerHTML = html;
         }
 
-        // ===== ЛОГИКА ADD =====
+        // ===== ЛОГИКА КАСТОМНЫХ СЕЛЕКТОВ (ADD) =====
         function populateTypeDropdown() {
             const types = Object.keys(categoriesData);
             typeSelect.innerHTML = '';
@@ -1258,6 +1332,7 @@
                 checkSaveButton();
             });
             typeButton.disabled = false;
+            
             if (types.length === 1 && typeEnabled) {
                 const singleType = types[0];
                 typeSelect.value = singleType;
@@ -1293,6 +1368,7 @@
             const type = typeSelect.value;
             if (!type) return;
             const accounts = Object.keys(categoriesData[type] || {});
+            
             accountSelect.innerHTML = '';
             accounts.forEach(acc => {
                 const option = document.createElement('option');
@@ -1300,6 +1376,7 @@
                 option.textContent = acc;
                 accountSelect.appendChild(option);
             });
+            
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
@@ -1328,7 +1405,9 @@
             const type = typeSelect.value;
             const account = accountSelect.value;
             if (!type || !account) return;
+            
             const articles = categoriesData[type][account] || [];
+            
             articleSelect.innerHTML = '';
             articles.forEach(art => {
                 const option = document.createElement('option');
@@ -1336,6 +1415,7 @@
                 option.textContent = art.name;
                 articleSelect.appendChild(option);
             });
+            
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value.name;
                 articleSelectedText.textContent = value.name;
@@ -1377,6 +1457,7 @@
         }
 
         function checkSaveButton() {
+            // Проверяем только те поля, которые включены
             let typeOk = !typeEnabled || (typeSelect.value && typeSelect.value !== '');
             let accountOk = !accountEnabled || (accountSelect.value && accountSelect.value !== '');
             let articleOk = !articleEnabled || (articleSelect.value && articleSelect.value !== '');
@@ -1396,6 +1477,7 @@
                 await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
+                
                 amountInput.value = '';
                 commentInput.value = '';
                 typeSelect.value = '';
@@ -1410,6 +1492,7 @@
                 articleDropdown.innerHTML = '';
                 currentArticleSign = 'plus';
                 checkSaveButton();
+                
                 loadHistory();
                 loadSummary();
                 loadChartData();
@@ -1451,6 +1534,7 @@
                 const sign = currentArticleSign;
                 const amount = parseFloat(amountInput.value);
                 const comment = commentInput.value;
+                // Проверяем только включённые поля
                 if ((typeEnabled && !type) || (accountEnabled && !account) || (articleEnabled && !article) || isNaN(amount) || amount <= 0) return;
                 saveBtn.disabled = true;
                 statusDiv.textContent = 'Отправка...';
@@ -1462,16 +1546,21 @@
         function openEditModal(record) {
             currentEditRow = record.row;
             currentEditSign = record.amount < 0 ? 'minus' : 'plus';
+            
             editDisplayType.innerHTML = `<span style="color:#36FF00">Тип:</span> ${record.type}`;
             editDisplayAccount.innerHTML = `<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
             editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${record.article}`;
             editAmount.value = Math.abs(record.amount);
             editComment.value = record.comment || '';
+            
             modal.classList.add('show');
         }
 
         function attachModalListeners() {
-            cancelBtn.addEventListener('click', () => modal.classList.remove('show'));
+            cancelBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+            });
+            
             deleteBtn.addEventListener('click', async () => {
                 if (!currentEditRow) return;
                 if (!confirm('Удалить запись?')) return;
@@ -1481,12 +1570,16 @@
                     loadHistory();
                     loadSummary();
                     loadChartData();
-                } catch (e) { alert('Ошибка удаления'); }
+                } catch (e) {
+                    alert('Ошибка удаления');
+                }
             });
+            
             updateBtn.addEventListener('click', async () => {
                 if (!currentEditRow) return;
                 const amount = parseFloat(editAmount.value);
                 if (isNaN(amount) || amount <= 0) return;
+                
                 const formData = new URLSearchParams();
                 formData.append('type', editDisplayType.innerText.split(' ')[1]);
                 formData.append('account', editDisplayAccount.innerText.split(' ')[1]);
@@ -1495,13 +1588,16 @@
                 formData.append('amount', amount);
                 formData.append('comment', editComment.value);
                 formData.append('row', currentEditRow);
+                
                 try {
                     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
                     modal.classList.remove('show');
                     loadHistory();
                     loadSummary();
                     loadChartData();
-                } catch (e) { alert('Ошибка обновления'); }
+                } catch (e) {
+                    alert('Ошибка обновления');
+                }
             });
         }
 
@@ -1510,19 +1606,22 @@
                 tab.addEventListener('click', () => {
                     summaryTabs.forEach(t => t.classList.remove('active'));
                     tab.classList.add('active');
-                    if (tab.dataset.tab === 'table') {
-                        summaryContentDiv.style.display = 'block';
-                        summaryChartsDiv.style.display = 'none';
+                    const tabName = tab.dataset.tab;
+                    if (tabName === 'table') {
+                        document.getElementById('summaryTable').style.display = 'block';
+                        document.getElementById('summaryCharts').style.display = 'none';
                     } else {
-                        summaryContentDiv.style.display = 'none';
-                        summaryChartsDiv.style.display = 'block';
+                        document.getElementById('summaryTable').style.display = 'none';
+                        document.getElementById('summaryCharts').style.display = 'block';
                         if (currentSummaryData) renderCharts(currentSummaryData);
                     }
                 });
             });
         }
 
+        // ===== СТАРТ =====
         init();
+
         if (window.Telegram?.WebApp) Telegram.WebApp.ready();
     </script>
 </body>
