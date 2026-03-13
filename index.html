@@ -1,10 +1,10 @@
-<!-- Вставьте этот код в ваш index.html, заменив предыдущий полностью -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Finance Mini App</title>
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
@@ -136,11 +136,6 @@
             min-width: 60px;
         }
         .period-btn.active {
-            border-color: #36FF00;
-            color: #36FF00;
-        }
-        /* Явное правило для кнопок More (на случай, если общий селектор не сработает) */
-        #historyMoreBtn.active, #summaryMoreBtn.active {
             border-color: #36FF00;
             color: #36FF00;
         }
@@ -545,6 +540,7 @@
     </style>
 </head>
 <body>
+    <!-- Экран загрузки -->
     <div class="loading-screen" id="loadingScreen">
         <img src="logo.png" alt="Finance Logo" class="loading-logo">
     </div>
@@ -561,7 +557,7 @@
         </div>
 
         <div class="screens-container" id="screensContainer">
-            <!-- ADD screen -->
+            <!-- Экран ADD -->
             <div class="screen" id="screen0">
                 <div class="custom-select" id="typeSelectContainer">
                     <select id="typeSelect" class="native-select"></select>
@@ -593,7 +589,7 @@
                 <div id="statusMessage" class="status"></div>
             </div>
 
-            <!-- FLOW screen -->
+            <!-- Экран FLOW -->
             <div class="screen" id="screen1">
                 <div class="period-selector" id="historyPeriod">
                     <button class="period-btn" data-period="today">Today</button>
@@ -620,7 +616,7 @@
                 <div id="historyStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
 
-            <!-- SUM screen -->
+            <!-- Экран SUM -->
             <div class="screen" id="screen2">
                 <div class="period-selector" id="summaryPeriod">
                     <button class="period-btn" data-period="today">Today</button>
@@ -659,6 +655,7 @@
         </div>
     </div>
 
+    <!-- Модальное окно редактирования -->
     <div class="modal" id="editModal">
         <div class="modal-content">
             <div class="modal-title" id="modalTitle">Редактирование</div>
@@ -681,7 +678,7 @@
 
     <script>
         // ===== НАСТРОЙКИ =====
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ ПОЗЖЕ
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ВАШ URL
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
@@ -904,7 +901,6 @@
                     currentFilterHistory = { period };
                     setActivePeriod(historyPeriodBtns, period);
                     historyMoreFilters.classList.remove('show');
-                    historyMoreBtn.classList.remove('active');
                     resetMonthYear('history');
                     loadHistory();
                 });
@@ -916,7 +912,6 @@
                     currentFilterSummary = { period };
                     setActivePeriod(summaryPeriodBtns, period);
                     summaryMoreFilters.classList.remove('show');
-                    summaryMoreBtn.classList.remove('active');
                     resetMonthYear('summary');
                     loadSummary();
                     loadChartData();
@@ -927,13 +922,12 @@
                 e.stopPropagation();
                 const isActive = historyMoreFilters.classList.contains('show');
                 if (isActive) {
+                    historyMoreFilters.classList.remove('show');
                     resetMonthYear('history');
                     currentFilterHistory = { period: 'all' };
                     loadHistory();
                 } else {
                     historyMoreFilters.classList.add('show');
-                    historyMoreBtn.classList.add('active');
-                    setActivePeriod(historyPeriodBtns, null);
                     currentFilterHistory = { period: 'all' };
                     loadHistory();
                 }
@@ -943,14 +937,13 @@
                 e.stopPropagation();
                 const isActive = summaryMoreFilters.classList.contains('show');
                 if (isActive) {
+                    summaryMoreFilters.classList.remove('show');
                     resetMonthYear('summary');
                     currentFilterSummary = { period: 'all' };
                     loadSummary();
                     loadChartData();
                 } else {
                     summaryMoreFilters.classList.add('show');
-                    summaryMoreBtn.classList.add('active');
-                    setActivePeriod(summaryPeriodBtns, null);
                     currentFilterSummary = { period: 'all' };
                     loadSummary();
                     loadChartData();
@@ -1534,4 +1527,3 @@
     </script>
 </body>
 </html>
-
