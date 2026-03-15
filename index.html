@@ -7,6 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* ===== СТИЛИ БЕЗ ИЗМЕНЕНИЙ (ПРОВЕРЕНЫ) ===== */
         * {
             margin: 0;
             padding: 0;
@@ -685,6 +686,10 @@
         // Карта знаков для быстрого доступа по значению из выбранного столбца
         let signMap = new Map();
 
+        // Множества для независимых списков
+        let allAccountsSet = new Set();
+        let allArticlesSet = new Set();
+
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
         const appContainer = document.getElementById('appContainer');
@@ -1107,11 +1112,16 @@
                 if (data.error) throw new Error(data.error);
                 categoriesData = data;
                 
-                // Построение signMap на основе иерархии
+                // Построение signMap и множеств для независимых списков
                 signMap.clear();
+                allAccountsSet.clear();
+                allArticlesSet.clear();
+                
                 for (let type in categoriesData) {
                     for (let account in categoriesData[type]) {
+                        allAccountsSet.add(account);
                         categoriesData[type][account].forEach(art => {
+                            allArticlesSet.add(art.name);
                             let key;
                             if (signColumn === 1) key = type;
                             else if (signColumn === 2) key = account;
@@ -1125,7 +1135,11 @@
                 
                 populateTypeDropdown();
                 if (!linked) {
+                    // При linked=false сразу заполняем счёт и статью всеми значениями
+                    enableAccountSelect(); // разблокируем счёт
                     populateAccountDropdownAll();
+                    // статья будет разблокирована после выбора счёта? Нет, при linked=false статья не зависит от счёта, поэтому её тоже можно разблокировать сразу.
+                    enableArticleSelect();
                     populateArticleDropdownAll();
                 }
             } catch (e) {
@@ -1135,13 +1149,7 @@
         }
 
         function populateAccountDropdownAll() {
-            const allAccounts = new Set();
-            for (let type in categoriesData) {
-                for (let account in categoriesData[type]) {
-                    allAccounts.add(account);
-                }
-            }
-            const accounts = Array.from(allAccounts);
+            const accounts = Array.from(allAccountsSet).sort();
             accountSelect.innerHTML = '';
             accounts.forEach(acc => {
                 const option = document.createElement('option');
@@ -1155,22 +1163,12 @@
                 if (signColumn === 2) {
                     currentArticleSign = signMap.get(value) || 'plus';
                 }
-                if (articleButton.disabled) {
-                    enableArticleSelect();
-                    populateArticleDropdownAll();
-                }
                 checkSaveButton();
             });
         }
 
         function populateArticleDropdownAll() {
-            const allArticles = new Set();
-            for (let type in categoriesData) {
-                for (let account in categoriesData[type]) {
-                    categoriesData[type][account].forEach(art => allArticles.add(art.name));
-                }
-            }
-            const articles = Array.from(allArticles);
+            const articles = Array.from(allArticlesSet).sort();
             articleSelect.innerHTML = '';
             articles.forEach(art => {
                 const option = document.createElement('option');
@@ -1423,7 +1421,7 @@
 
         // ===== ЛОГИКА КАСТОМНЫХ СЕЛЕКТОВ (ADD) =====
         function populateTypeDropdown() {
-            const types = Object.keys(categoriesData);
+            const types = Object.keys(categoriesData).sort();
             typeSelect.innerHTML = '';
             typeDropdown.innerHTML = '';
             types.forEach(t => {
@@ -1484,9 +1482,9 @@
             
             let accounts;
             if (linked) {
-                accounts = Object.keys(categoriesData[type] || {});
+                accounts = Object.keys(categoriesData[type] || {}).sort();
             } else {
-                return;
+                return; // ничего не делаем, список уже заполнен
             }
             
             accountSelect.innerHTML = '';
