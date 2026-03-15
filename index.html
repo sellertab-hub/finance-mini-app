@@ -518,8 +518,65 @@
             font-size: 18px;
             font-weight: 600;
         }
-        .card-amount.positive { color: #36FF00; }
-        .card-amount.negative { color: #ff4646; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: #0c0c0c;
+            border: 2px solid #36FF00;
+            border-radius: 28px;
+            padding: 16px;
+            width: 90%;
+            max-width: 360px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #36FF00;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn.delete {
+            background: #ff4646;
+            color: #fff;
+        }
+        .modal-btn.cancel {
+            background: #444;
+            color: #fff;
+        }
+        .modal-btn.edit {
+            background: #36FF00;
+            color: #000;
+        }
     </style>
 </head>
 <body>
@@ -635,8 +692,26 @@
         </div>
     </div>
 
-    <!-- Модальное окно временно убрано для диагностики -->
-    <!-- <div class="modal" id="editModal">...</div> -->
+    <!-- Модальное окно для редактирования/удаления -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-title" id="modalTitle">Редактирование</div>
+            <div id="editForm">
+                <div style="margin-bottom: 12px; color:#aaa;">
+                    <div id="editDisplayType" style="margin-bottom:6px;"></div>
+                    <div id="editDisplayAccount" style="margin-bottom:6px;"></div>
+                    <div id="editDisplayArticle" style="margin-bottom:6px;"></div>
+                </div>
+                <input type="number" id="editAmount" placeholder="Сумма" min="0" step="0.01" />
+                <textarea id="editComment" placeholder="Комментарий"></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn delete" id="deleteBtn">Удалить</button>
+                <button class="modal-btn cancel" id="cancelBtn">Отмена</button>
+                <button class="modal-btn edit" id="updateBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         // ===== НАСТРОЙКИ =====
@@ -652,7 +727,7 @@
         let currentArticleSign = 'plus';
         let chartInstances = {};
         let currentSummaryData = null;
-        let currentEditRow = null; // не используется без модалки
+        let currentEditRow = null;
         let currentEditSign = 'plus';
         let allMonths = [];
         let allYears = [];
@@ -661,7 +736,7 @@
         let accountEnabled = true;
         let articleEnabled = true;
         let linked = true;
-        let editEnabled = true; // пока не используется
+        let editEnabled = true;
         let summaryCategories = [];
         let signColumn = 3;
 
@@ -726,6 +801,17 @@
         const chartDetailDiv = document.getElementById('chartDetail');
         const summaryCardsDiv = document.getElementById('summaryCards');
         const viewToggle = document.getElementById('viewToggle');
+
+        const modal = document.getElementById('editModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const editAmount = document.getElementById('editAmount');
+        const editComment = document.getElementById('editComment');
+        const editDisplayType = document.getElementById('editDisplayType');
+        const editDisplayAccount = document.getElementById('editDisplayAccount');
+        const editDisplayArticle = document.getElementById('editDisplayArticle');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const updateBtn = document.getElementById('updateBtn');
 
         const screensContainer = document.getElementById('screensContainer');
         const segButtons = document.querySelectorAll('.segmented-btn');
@@ -829,12 +915,19 @@
                     }
                 }
                 
+                console.log('All accounts:', Array.from(allAccountsSet));
+                console.log('All articles:', Array.from(allArticlesSet));
+                
                 populateTypeDropdown();
+                
                 if (!linked) {
+                    // При linked=false сразу заполняем и разблокируем счёт и статью
                     enableAccountSelect();
                     populateAccountDropdownAll();
                     enableArticleSelect();
                     populateArticleDropdownAll();
+                } else {
+                    // При linked=true оставляем как есть (счёт и статья заблокированы до выбора)
                 }
             } catch (e) {
                 console.error(e);
@@ -845,12 +938,21 @@
         function populateAccountDropdownAll() {
             const accounts = Array.from(allAccountsSet).sort();
             accountSelect.innerHTML = '';
-            accounts.forEach(acc => {
+            if (accounts.length === 0) {
+                // Добавим заглушку, чтобы список не был пустым
                 const option = document.createElement('option');
-                option.value = acc;
-                option.textContent = acc;
+                option.value = '';
+                option.textContent = 'Нет доступных счетов';
+                option.disabled = true;
                 accountSelect.appendChild(option);
-            });
+            } else {
+                accounts.forEach(acc => {
+                    const option = document.createElement('option');
+                    option.value = acc;
+                    option.textContent = acc;
+                    accountSelect.appendChild(option);
+                });
+            }
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
@@ -864,12 +966,20 @@
         function populateArticleDropdownAll() {
             const articles = Array.from(allArticlesSet).sort();
             articleSelect.innerHTML = '';
-            articles.forEach(art => {
+            if (articles.length === 0) {
                 const option = document.createElement('option');
-                option.value = art;
-                option.textContent = art;
+                option.value = '';
+                option.textContent = 'Нет доступных статей';
+                option.disabled = true;
                 articleSelect.appendChild(option);
-            });
+            } else {
+                articles.forEach(art => {
+                    const option = document.createElement('option');
+                    option.value = art;
+                    option.textContent = art;
+                    articleSelect.appendChild(option);
+                });
+            }
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value;
                 articleSelectedText.textContent = value;
@@ -891,6 +1001,7 @@
             attachPeriodListeners();
             attachFilterListeners();
             attachSelectListeners();
+            attachModalListeners();
             attachViewToggleListener();
 
             setActivePeriod(historyPeriodBtns, 'today');
@@ -1210,11 +1321,19 @@
                         </div>
                         <div style="display: flex; align-items: center;">
                             <span class="transaction-amount" style="color: ${amountColor}">${rec.amount.toFixed(2)}</span>
+                            ${editEnabled ? '<span class="edit-icon" data-row="'+rec.row+'">✏️</span>' : ''}
                         </div>
                     </div>
                     ${rec.comment ? `<div class="transaction-comment">💬 ${rec.comment}</div>` : ''}
                     <div class="transaction-date">${date}</div>
                 `;
+                if (editEnabled) {
+                    const editIcon = item.querySelector('.edit-icon');
+                    editIcon.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openEditModal(rec);
+                    });
+                }
                 historyListDiv.appendChild(item);
             });
         }
@@ -1298,11 +1417,11 @@
                 else if (currentSummaryData.articles && currentSummaryData.articles[cat]) total = currentSummaryData.articles[cat];
                 
                 const color = colors[index % colors.length];
-                const signClass = total < 0 ? 'negative' : 'positive';
+                // Используем тот же цвет для суммы, что и для рамки
                 html += `
                     <div class="summary-card" style="border-color: ${color}">
                         <div class="card-title" style="color: ${color}">${cat}</div>
-                        <div class="card-amount ${signClass}">${total.toFixed(2)}</div>
+                        <div class="card-amount" style="color: ${color}">${total.toFixed(2)}</div>
                     </div>
                 `;
             });
@@ -1603,6 +1722,64 @@
                 statusDiv.textContent = 'Отправка...';
                 statusDiv.className = 'status';
                 saveExpense(type, account, article, sign, amount, comment);
+            });
+        }
+
+        function openEditModal(record) {
+            currentEditRow = record.row;
+            currentEditSign = record.amount < 0 ? 'minus' : 'plus';
+            
+            editDisplayType.innerHTML = `<span style="color:#36FF00">Тип:</span> ${record.type}`;
+            editDisplayAccount.innerHTML = `<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
+            editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${record.article}`;
+            editAmount.value = Math.abs(record.amount);
+            editComment.value = record.comment || '';
+            
+            modal.classList.add('show');
+        }
+
+        function attachModalListeners() {
+            cancelBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+            });
+            
+            deleteBtn.addEventListener('click', async () => {
+                if (!currentEditRow) return;
+                if (!confirm('Удалить запись?')) return;
+                try {
+                    await fetch(`${APPS_SCRIPT_URL}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
+                    modal.classList.remove('show');
+                    loadHistory();
+                    loadSummary();
+                    loadChartData();
+                } catch (e) {
+                    alert('Ошибка удаления');
+                }
+            });
+            
+            updateBtn.addEventListener('click', async () => {
+                if (!currentEditRow) return;
+                const amount = parseFloat(editAmount.value);
+                if (isNaN(amount) || amount <= 0) return;
+                
+                const formData = new URLSearchParams();
+                formData.append('type', editDisplayType.innerText.split(' ')[1]);
+                formData.append('account', editDisplayAccount.innerText.split(' ')[1]);
+                formData.append('article', editDisplayArticle.innerText.split(' ')[1]);
+                formData.append('sign', currentEditSign);
+                formData.append('amount', amount);
+                formData.append('comment', editComment.value);
+                formData.append('row', currentEditRow);
+                
+                try {
+                    await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+                    modal.classList.remove('show');
+                    loadHistory();
+                    loadSummary();
+                    loadChartData();
+                } catch (e) {
+                    alert('Ошибка обновления');
+                }
             });
         }
 
