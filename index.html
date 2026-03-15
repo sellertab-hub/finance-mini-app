@@ -7,6 +7,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* Стили те же, что в предыдущей версии – не меняем */
         * {
             margin: 0;
             padding: 0;
@@ -608,16 +609,16 @@
                 </div>
                 <div class="custom-select" id="accountSelectContainer">
                     <select id="accountSelect" class="native-select"></select>
-                    <div class="select-button" id="accountSelectButton" disabled>
-                        <span id="accountSelectedText">Сначала выберите тип</span>
+                    <div class="select-button" id="accountSelectButton">
+                        <span id="accountSelectedText">Загрузка счетов...</span>
                         <span class="arrow"></span>
                     </div>
                     <div class="select-dropdown" id="accountDropdown"></div>
                 </div>
                 <div class="custom-select" id="articleSelectContainer">
                     <select id="articleSelect" class="native-select"></select>
-                    <div class="select-button" id="articleSelectButton" disabled>
-                        <span id="articleSelectedText">Сначала выберите счёт</span>
+                    <div class="select-button" id="articleSelectButton">
+                        <span id="articleSelectedText">Загрузка статей...</span>
                         <span class="arrow"></span>
                     </div>
                     <div class="select-dropdown" id="articleDropdown"></div>
@@ -692,7 +693,7 @@
         </div>
     </div>
 
-    <!-- Модальное окно для редактирования/удаления -->
+    <!-- Модальное окно -->
     <div class="modal" id="editModal">
         <div class="modal-content">
             <div class="modal-title" id="modalTitle">Редактирование</div>
@@ -714,10 +715,9 @@
     </div>
 
     <script>
-        // ===== НАСТРОЙКИ =====
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';
 
-        // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
+        // Глобальные переменные
         let categoriesData = null;
         let settingsData = null;
         let currentFilterHistory = { period: 'today' };
@@ -744,7 +744,7 @@
         let allAccountsSet = new Set();
         let allArticlesSet = new Set();
 
-        // ===== ЭЛЕМЕНТЫ =====
+        // Элементы
         const loadingScreen = document.getElementById('loadingScreen');
         const appContainer = document.getElementById('appContainer');
 
@@ -816,7 +816,7 @@
         const screensContainer = document.getElementById('screensContainer');
         const segButtons = document.querySelectorAll('.segmented-btn');
 
-        // ===== ВСПОМОГАТЕЛЬНЫЕ =====
+        // Вспомогательные
         function getCurrentMonth() {
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -920,15 +920,19 @@
                 
                 populateTypeDropdown();
                 
-                if (!linked) {
-                    // При linked=false сразу заполняем и разблокируем счёт и статью
-                    enableAccountSelect();
-                    populateAccountDropdownAll();
-                    enableArticleSelect();
-                    populateArticleDropdownAll();
-                } else {
-                    // При linked=true оставляем как есть (счёт и статья заблокированы до выбора)
-                }
+                // ВАЖНО: Заполняем счёт и статью независимо от linked
+                // Они будут активны всегда (кнопки не блокируются)
+                populateAccountDropdownAll();
+                populateArticleDropdownAll();
+                
+                // Если linked = true, мы всё равно оставляем счёт и статью активными,
+                // но при выборе типа мы будем вызывать updateAccountOptions для фильтрации.
+                // Однако, если пользователь уже выбрал счёт, мы не должны его сбрасывать.
+                // Поэтому resetAccountAndArticle будем вызывать только при linked = true?
+                // Упростим: при linked = true мы будем динамически обновлять список счёта при выборе типа,
+                // но не будем сбрасывать выбранное значение, если оно ещё доступно.
+                // Пока оставим как есть.
+                
             } catch (e) {
                 console.error(e);
                 typeSelectedText.textContent = 'Ошибка загрузки';
@@ -939,7 +943,6 @@
             const accounts = Array.from(allAccountsSet).sort();
             accountSelect.innerHTML = '';
             if (accounts.length === 0) {
-                // Добавим заглушку, чтобы список не был пустым
                 const option = document.createElement('option');
                 option.value = '';
                 option.textContent = 'Нет доступных счетов';
@@ -953,6 +956,9 @@
                     accountSelect.appendChild(option);
                 });
             }
+            accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
+            accountButton.disabled = false;
+            // Перестраиваем дропдаун
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
@@ -980,11 +986,67 @@
                     articleSelect.appendChild(option);
                 });
             }
+            articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
+            articleButton.disabled = false;
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value;
                 articleSelectedText.textContent = value;
                 if (signColumn === 3) {
                     currentArticleSign = signMap.get(value) || 'plus';
+                }
+                checkSaveButton();
+            });
+        }
+
+        // Функция для обновления списка счетов при linked = true (зависимый режим)
+        function updateAccountOptionsLinked() {
+            if (!accountEnabled) return;
+            const type = typeSelect.value;
+            if (!type) return;
+            
+            const accounts = Object.keys(categoriesData[type] || {}).sort();
+            accountSelect.innerHTML = '';
+            accounts.forEach(acc => {
+                const option = document.createElement('option');
+                option.value = acc;
+                option.textContent = acc;
+                accountSelect.appendChild(option);
+            });
+            accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
+            accountButton.disabled = false;
+            populateDropdown(accountDropdown, accounts, null, (value) => {
+                accountSelect.value = value;
+                accountSelectedText.textContent = value;
+                if (signColumn === 2) {
+                    currentArticleSign = signMap.get(value) || 'plus';
+                }
+                // При выборе счёта обновляем список статей (зависимый режим)
+                updateArticleOptionsLinked();
+                checkSaveButton();
+            });
+        }
+
+        function updateArticleOptionsLinked() {
+            if (!articleEnabled) return;
+            const type = typeSelect.value;
+            const account = accountSelect.value;
+            if (!type || !account) return;
+            
+            const articles = categoriesData[type][account] || [];
+            articleSelect.innerHTML = '';
+            articles.forEach(art => {
+                const option = document.createElement('option');
+                option.value = art.name;
+                option.textContent = art.name;
+                articleSelect.appendChild(option);
+            });
+            articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
+            articleButton.disabled = false;
+            populateDropdown(articleDropdown, articles, null, (value) => {
+                articleSelect.value = value.name;
+                articleSelectedText.textContent = value.name;
+                if (signColumn === 3) {
+                    currentArticleSign = value.sign;
                 }
                 checkSaveButton();
             });
@@ -1417,7 +1479,6 @@
                 else if (currentSummaryData.articles && currentSummaryData.articles[cat]) total = currentSummaryData.articles[cat];
                 
                 const color = colors[index % colors.length];
-                // Используем тот же цвет для суммы, что и для рамки
                 html += `
                     <div class="summary-card" style="border-color: ${color}">
                         <div class="card-title" style="color: ${color}">${cat}</div>
@@ -1482,158 +1543,20 @@
                 option.textContent = t;
                 typeSelect.appendChild(option);
             });
+            typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
+            typeButton.disabled = false;
             populateDropdown(typeDropdown, types, null, (value) => {
                 typeSelect.value = value;
                 typeSelectedText.textContent = value;
                 if (signColumn === 1) {
                     currentArticleSign = signMap.get(value) || 'plus';
                 }
-                resetAccountAndArticle();
-                enableAccountSelect();
-                checkSaveButton();
-            });
-            typeButton.disabled = false;
-            
-            if (types.length === 1 && typeEnabled) {
-                const singleType = types[0];
-                typeSelect.value = singleType;
-                typeSelectedText.textContent = singleType;
-                if (signColumn === 1) {
-                    currentArticleSign = signMap.get(singleType) || 'plus';
-                }
-                resetAccountAndArticle();
-                enableAccountSelect();
-                checkSaveButton();
-            } else {
-                typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
-            }
-        }
-
-        function resetAccountAndArticle() {
-            accountSelect.value = '';
-            accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
-            accountButton.disabled = true;
-            accountDropdown.innerHTML = '';
-            articleSelect.value = '';
-            articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
-            articleButton.disabled = true;
-            articleDropdown.innerHTML = '';
-            if (signColumn !== 1) currentArticleSign = 'plus';
-        }
-
-        function enableAccountSelect() {
-            if (!accountEnabled) return;
-            accountButton.disabled = false;
-            accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
-        }
-
-        function updateAccountOptions() {
-            if (!accountEnabled) return;
-            const type = typeSelect.value;
-            if (!type) return;
-            
-            let accounts;
-            if (linked) {
-                accounts = Object.keys(categoriesData[type] || {}).sort();
-            } else {
-                return;
-            }
-            
-            accountSelect.innerHTML = '';
-            accounts.forEach(acc => {
-                const option = document.createElement('option');
-                option.value = acc;
-                option.textContent = acc;
-                accountSelect.appendChild(option);
-            });
-            
-            populateDropdown(accountDropdown, accounts, null, (value) => {
-                accountSelect.value = value;
-                accountSelectedText.textContent = value;
-                if (signColumn === 2) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
-                resetArticle();
-                enableArticleSelect();
-                checkSaveButton();
-            });
-        }
-
-        function resetArticle() {
-            articleSelect.value = '';
-            articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
-            articleButton.disabled = true;
-            articleDropdown.innerHTML = '';
-            if (signColumn !== 2 && signColumn !== 1) currentArticleSign = 'plus';
-        }
-
-        function enableArticleSelect() {
-            if (!articleEnabled) return;
-            articleButton.disabled = false;
-            articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
-        }
-
-        function updateArticleOptions() {
-            if (!articleEnabled) return;
-            const type = typeSelect.value;
-            const account = accountSelect.value;
-            if (!type || !account) return;
-            
-            let articles;
-            if (linked) {
-                articles = categoriesData[type][account] || [];
-            } else {
-                return;
-            }
-            
-            articleSelect.innerHTML = '';
-            articles.forEach(art => {
-                const option = document.createElement('option');
-                option.value = art.name;
-                option.textContent = art.name;
-                articleSelect.appendChild(option);
-            });
-            
-            populateDropdown(articleDropdown, articles, null, (value) => {
-                articleSelect.value = value.name;
-                articleSelectedText.textContent = value.name;
-                if (signColumn === 3) {
-                    currentArticleSign = value.sign;
+                // Если режим связанный, обновляем список счетов
+                if (linked) {
+                    updateAccountOptionsLinked();
                 }
                 checkSaveButton();
             });
-        }
-
-        function populateDropdown(dropdown, items, selected, onChange) {
-            dropdown.innerHTML = '';
-            items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'select-option';
-                const itemName = typeof item === 'string' ? item : item.name;
-                if (itemName === selected) div.classList.add('selected');
-                div.textContent = itemName;
-                div.addEventListener('click', () => onChange(item));
-                dropdown.appendChild(div);
-            });
-        }
-
-        function toggleDropdown(dropdown, button) {
-            if (dropdown.classList.contains('show')) {
-                closeAllDropdowns();
-            } else {
-                closeAllDropdowns();
-                dropdown.classList.add('show');
-                button.classList.add('open');
-                activeDropdown = { dropdown, button };
-            }
-        }
-
-        function closeAllDropdowns() {
-            if (activeDropdown) {
-                activeDropdown.dropdown.classList.remove('show');
-                activeDropdown.button.classList.remove('open');
-                activeDropdown = null;
-            }
         }
 
         function checkSaveButton() {
@@ -1665,10 +1588,10 @@
                 typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
                 accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
                 articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
-                accountButton.disabled = true;
-                articleButton.disabled = true;
-                accountDropdown.innerHTML = '';
-                articleDropdown.innerHTML = '';
+                // Сброс списков при сохранении? Лучше оставить их заполненными, но сбросить выбранное.
+                // Для независимого режима списки уже заполнены, просто сбрасываем выбранное значение.
+                accountSelect.value = '';
+                articleSelect.value = '';
                 currentArticleSign = 'plus';
                 checkSaveButton();
                 
@@ -1691,18 +1614,12 @@
             });
             accountButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (accountButton.disabled || !accountEnabled) return;
-                if (linked) {
-                    updateAccountOptions();
-                }
+                if (accountButton.disabled) return;
                 toggleDropdown(accountDropdown, accountButton);
             });
             articleButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (articleButton.disabled || !articleEnabled) return;
-                if (linked) {
-                    updateArticleOptions();
-                }
+                if (articleButton.disabled) return;
                 toggleDropdown(articleDropdown, articleButton);
             });
             document.addEventListener('click', closeAllDropdowns);
@@ -1725,6 +1642,39 @@
             });
         }
 
+        function toggleDropdown(dropdown, button) {
+            if (dropdown.classList.contains('show')) {
+                closeAllDropdowns();
+            } else {
+                closeAllDropdowns();
+                dropdown.classList.add('show');
+                button.classList.add('open');
+                activeDropdown = { dropdown, button };
+            }
+        }
+
+        function closeAllDropdowns() {
+            if (activeDropdown) {
+                activeDropdown.dropdown.classList.remove('show');
+                activeDropdown.button.classList.remove('open');
+                activeDropdown = null;
+            }
+        }
+
+        function populateDropdown(dropdown, items, selected, onChange) {
+            dropdown.innerHTML = '';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'select-option';
+                const itemName = typeof item === 'string' ? item : item.name;
+                if (itemName === selected) div.classList.add('selected');
+                div.textContent = itemName;
+                div.addEventListener('click', () => onChange(item));
+                dropdown.appendChild(div);
+            });
+        }
+
+        // ===== МОДАЛКА =====
         function openEditModal(record) {
             currentEditRow = record.row;
             currentEditSign = record.amount < 0 ? 'minus' : 'plus';
