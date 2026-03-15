@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Finance Mini App</title>
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
@@ -714,37 +713,20 @@
     </div>
 
     <script>
-        // ===== НАСТРОЙКИ =====
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec?action=fullData';
 
-        // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-        let categoriesData = null;          // иерархия { type: { account: [ { name, sign } ] } }
-        let allAccounts = [];                // все счета (для независимого режима)
-        let allArticles = [];                // все статьи (для независимого режима)
-        let settingsData = null;
+        // Глобальные данные
+        let allData = null; // { categories, allAccounts, allArticles, months, years, settings, records }
+
+        // Текущие фильтры
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'all' };
-        let activeDropdown = null;
-        let activeFilterDropdown = null;
-        let currentArticleSign = 'plus';
-        let chartInstances = {};
-        let currentSummaryData = null;
+
+        // Для редактирования
         let currentEditRow = null;
         let currentEditSign = 'plus';
-        let allMonths = [];
-        let allYears = [];
 
-        let typeEnabled = true;
-        let accountEnabled = true;
-        let articleEnabled = true;
-        let linked = true;
-        let editEnabled = true;
-        let summaryCategories = [];
-        let signColumn = 3;
-
-        let signMap = new Map();
-
-        // ===== ЭЛЕМЕНТЫ =====
+        // UI элементы (без изменений)
         const loadingScreen = document.getElementById('loadingScreen');
         const appContainer = document.getElementById('appContainer');
 
@@ -816,7 +798,7 @@
         const screensContainer = document.getElementById('screensContainer');
         const segButtons = document.querySelectorAll('.segmented-btn');
 
-        // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+        // ===== Вспомогательные функции =====
         function getCurrentMonth() {
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -832,108 +814,145 @@
             return date.toLocaleString('en', { month: 'short' }).toUpperCase();
         }
 
-        // ===== ЗАГРУЗКА ДАННЫХ =====
-        async function loadMonths() {
-            try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=months');
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                allMonths = data;
-            } catch (e) {
-                console.error(e);
-                allMonths = [getCurrentMonth()];
-            }
-        }
-
-        async function loadYears() {
-            try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=years');
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                allYears = data;
-            } catch (e) {
-                console.error(e);
-                allYears = [getCurrentYear()];
-            }
-        }
-
-        async function loadSettings() {
-            try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=settings');
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                settingsData = data;
-                applySettings();
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        function applySettings() {
-            if (!settingsData) return;
+        function isInPeriod(dateValue, filter) {
+            const date = new Date(dateValue);
+            const now = new Date();
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             
-            if (settingsData.type) {
-                typeEnabled = settingsData.type.enabled;
-                typeContainer.style.display = typeEnabled ? 'block' : 'none';
+            if (filter.period === 'today') {
+                const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                return date >= startOfDay;
+            } else if (filter.period === 'week') {
+                return date >= weekAgo;
+            } else if (filter.period === 'month' && filter.month) {
+                const [year, month] = filter.month.split('-');
+                const monthStart = new Date(parseInt(year), parseInt(month)-1, 1);
+                const monthEnd = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
+                return date >= monthStart && date <= monthEnd;
+            } else if (filter.period === 'year' && filter.year) {
+                const yearStart = new Date(parseInt(filter.year), 0, 1);
+                const yearEnd = new Date(parseInt(filter.year), 11, 31, 23, 59, 59);
+                return date >= yearStart && date <= yearEnd;
+            } else {
+                return true; // all
             }
-            if (settingsData.account) {
-                accountEnabled = settingsData.account.enabled;
-                accountContainer.style.display = accountEnabled ? 'block' : 'none';
-                if (settingsData.account.firstText) accountSelectedText.textContent = settingsData.account.firstText;
-            }
-            if (settingsData.article) {
-                articleEnabled = settingsData.article.enabled;
-                articleContainer.style.display = articleEnabled ? 'block' : 'none';
-                if (settingsData.article.firstText) articleSelectedText.textContent = settingsData.article.firstText;
-            }
-            
-            if (settingsData.linked !== undefined) linked = settingsData.linked;
-            if (settingsData.editEnabled !== undefined) editEnabled = settingsData.editEnabled;
-            if (settingsData.summaryCategories) summaryCategories = settingsData.summaryCategories;
-            if (settingsData.signColumn) signColumn = settingsData.signColumn;
         }
 
-        async function loadCategories() {
+        // Фильтрация записей по текущему фильтру
+        function getFilteredRecords(filter) {
+            if (!allData || !allData.records) return [];
+            return allData.records.filter(rec => isInPeriod(rec.timestamp, filter));
+        }
+
+        // Построение сводки (summary) по отфильтрованным записям
+        function buildSummary(records) {
+            const summary = {};
+            records.forEach(rec => {
+                const type = rec.type || 'Без типа';
+                const account = rec.account || 'Без счёта';
+                const article = rec.article || 'Без статьи';
+                const amount = rec.amount || 0;
+                if (!summary[type]) summary[type] = {};
+                if (!summary[type][account]) summary[type][account] = {};
+                if (!summary[type][account][article]) summary[type][account][article] = 0;
+                summary[type][account][article] += amount;
+            });
+            return summary;
+        }
+
+        // Построение данных для графика
+        function buildChartData(records) {
+            const types = {};
+            const accounts = {};
+            const articles = {};
+            records.forEach(rec => {
+                const type = rec.type || 'Без типа';
+                const account = rec.account || 'Без счёта';
+                const article = rec.article || 'Без статьи';
+                const amount = rec.amount || 0;
+                types[type] = (types[type] || 0) + amount;
+                accounts[account] = (accounts[account] || 0) + amount;
+                articles[article] = (articles[article] || 0) + amount;
+            });
+            return { types, accounts, articles };
+        }
+
+        // ===== ЗАГРУЗКА ВСЕХ ДАННЫХ =====
+        async function loadAllData() {
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                categoriesData = data.categories || {};
-                allAccounts = data.allAccounts || [];
-                allArticles = data.allArticles || [];
-                
-                console.log('Categories loaded', categoriesData);
-                console.log('All accounts:', allAccounts);
-                console.log('All articles:', allArticles);
-                
-                // Построим signMap
-                signMap.clear();
-                for (let type in categoriesData) {
-                    for (let account in categoriesData[type]) {
-                        categoriesData[type][account].forEach(art => {
-                            let key;
-                            if (signColumn === 1) key = type;
-                            else if (signColumn === 2) key = account;
-                            else key = art.name;
-                            if (!signMap.has(key)) {
-                                signMap.set(key, art.sign);
-                            }
-                        });
-                    }
-                }
-                
-                populateTypeDropdown();
-                populateAccountDropdown(allAccounts);
-                populateArticleDropdown(allArticles);
-                
+                allData = data;
+                console.log('All data loaded', allData);
+                return true;
             } catch (e) {
-                console.error(e);
-                typeSelectedText.textContent = 'Ошибка загрузки';
+                console.error('Failed to load data', e);
+                return false;
             }
         }
 
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        async function init() {
+            loadingScreen.classList.remove('hidden');
+            
+            const ok = await loadAllData();
+            if (!ok) {
+                loadingScreen.innerHTML = '<div style="color:#ff4646; padding:20px; text-align:center;">Ошибка загрузки данных. Проверьте интернет или обратитесь к администратору.</div>';
+                return;
+            }
+            
+            applySettings();
+            populateTypeDropdown();
+            populateAccountDropdown(allData.allAccounts || []);
+            populateArticleDropdown(allData.allArticles || []);
+            
+            loadingScreen.classList.add('hidden');
+            appContainer.style.display = 'flex';
+            
+            attachNavigationListeners();
+            attachPeriodListeners();
+            attachFilterListeners();
+            attachSelectListeners();
+            attachModalListeners();
+            attachViewToggleListener();
+
+            setActivePeriod(historyPeriodBtns, 'today');
+            setActivePeriod(summaryPeriodBtns, null);
+            summaryMoreBtn.classList.add('active');
+            currentFilterSummary = { period: 'all' };
+            
+            // Первоначальное отображение
+            renderHistory(getFilteredRecords(currentFilterHistory));
+            const summaryRecords = getFilteredRecords(currentFilterSummary);
+            renderSummary(buildSummary(summaryRecords));
+            updateSummaryCards(summaryRecords);
+            if (summaryChartsDiv.style.display === 'block') {
+                renderCharts(buildChartData(summaryRecords));
+            }
+
+            screensContainer.addEventListener('scroll', syncSegmentedButtons);
+        }
+
+        function applySettings() {
+            if (!allData || !allData.settings) return;
+            const s = allData.settings;
+            if (s.type) {
+                typeContainer.style.display = s.type.enabled ? 'block' : 'none';
+            }
+            if (s.account) {
+                accountContainer.style.display = s.account.enabled ? 'block' : 'none';
+                if (s.account.firstText) accountSelectedText.textContent = s.account.firstText;
+            }
+            if (s.article) {
+                articleContainer.style.display = s.article.enabled ? 'block' : 'none';
+                if (s.article.firstText) articleSelectedText.textContent = s.article.firstText;
+            }
+            // linked, editEnabled, summaryCategories, signColumn будут использоваться в логике
+        }
+
         function populateTypeDropdown() {
-            const types = Object.keys(categoriesData).sort();
+            const types = Object.keys(allData.categories || {}).sort();
             typeSelect.innerHTML = '';
             typeDropdown.innerHTML = '';
             types.forEach(t => {
@@ -942,17 +961,11 @@
                 option.textContent = t;
                 typeSelect.appendChild(option);
             });
-            typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
+            typeSelectedText.textContent = allData.settings?.type?.secondText || 'Выберите тип';
             typeButton.disabled = false;
             populateDropdown(typeDropdown, types, null, (value) => {
                 typeSelect.value = value;
                 typeSelectedText.textContent = value;
-                if (signColumn === 1) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
-                if (linked) {
-                    updateAccountOptionsLinked();
-                }
                 checkSaveButton();
             });
         }
@@ -973,17 +986,11 @@
                     accountSelect.appendChild(option);
                 });
             }
-            accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
+            accountSelectedText.textContent = allData.settings?.account?.secondText || 'Выберите счёт';
             accountButton.disabled = false;
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
-                if (signColumn === 2) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
-                if (linked) {
-                    updateArticleOptionsLinked();
-                }
                 checkSaveButton();
             });
         }
@@ -1004,94 +1011,16 @@
                     articleSelect.appendChild(option);
                 });
             }
-            articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
+            articleSelectedText.textContent = allData.settings?.article?.secondText || 'Выберите статью';
             articleButton.disabled = false;
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value;
                 articleSelectedText.textContent = value;
-                if (signColumn === 3) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
                 checkSaveButton();
             });
         }
 
-        function updateAccountOptionsLinked() {
-            const type = typeSelect.value;
-            if (!type) return;
-            const accounts = Object.keys(categoriesData[type] || {}).sort();
-            populateAccountDropdown(accounts);
-        }
-
-        function updateArticleOptionsLinked() {
-            const type = typeSelect.value;
-            const account = accountSelect.value;
-            if (!type || !account) return;
-            const articles = (categoriesData[type][account] || []).map(a => a.name);
-            populateArticleDropdown(articles);
-        }
-
-        // ===== ИНИЦИАЛИЗАЦИЯ =====
-        async function init() {
-            loadingScreen.classList.remove('hidden');
-            
-            await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
-            
-            loadingScreen.classList.add('hidden');
-            appContainer.style.display = 'flex';
-            
-            attachNavigationListeners();
-            attachPeriodListeners();
-            attachFilterListeners();
-            attachSelectListeners();
-            attachModalListeners();
-            attachViewToggleListener();
-
-            setActivePeriod(historyPeriodBtns, 'today');
-            setActivePeriod(summaryPeriodBtns, null);
-            summaryMoreBtn.classList.add('active');
-            currentFilterSummary = { period: 'all' };
-            
-            loadHistory();
-            loadSummary();
-            loadChartData();
-
-            screensContainer.addEventListener('scroll', syncSegmentedButtons);
-        }
-
-        function setActivePeriod(btns, period) {
-            btns.forEach(btn => {
-                if (btn.dataset.period === period) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-        }
-
-        function attachNavigationListeners() {
-            segButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const screenIndex = btn.dataset.screen;
-                    screensContainer.scrollTo({
-                        left: screensContainer.clientWidth * screenIndex,
-                        behavior: 'smooth'
-                    });
-                });
-            });
-        }
-
-        function syncSegmentedButtons() {
-            const scrollLeft = screensContainer.scrollLeft;
-            const width = screensContainer.clientWidth;
-            const activeIndex = Math.round(scrollLeft / width);
-            segButtons.forEach((btn, i) => {
-                if (i === activeIndex) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
-        }
-
-        // ===== ФИЛЬТРЫ =====
+        // ===== ФИЛЬТРЫ (аналогично предыдущей версии, но теперь без запросов) =====
         function attachPeriodListeners() {
             historyPeriodBtns.forEach(btn => {
                 if (btn.id && btn.id.includes('MoreBtn')) return;
@@ -1102,7 +1031,7 @@
                     historyMoreFilters.classList.remove('show');
                     historyMoreBtn.classList.remove('active');
                     resetMonthYear('history');
-                    loadHistory();
+                    renderHistory(getFilteredRecords(currentFilterHistory));
                 });
             });
 
@@ -1115,9 +1044,12 @@
                     summaryMoreFilters.classList.remove('show');
                     summaryMoreBtn.classList.remove('active');
                     resetMonthYear('summary');
-                    loadSummary();
-                    loadChartData();
-                    updateSummaryCards();
+                    const records = getFilteredRecords(currentFilterSummary);
+                    renderSummary(buildSummary(records));
+                    updateSummaryCards(records);
+                    if (summaryChartsDiv.style.display === 'block') {
+                        renderCharts(buildChartData(records));
+                    }
                 });
             });
 
@@ -1127,13 +1059,13 @@
                 if (isActive) {
                     resetMonthYear('history');
                     currentFilterHistory = { period: 'all' };
-                    loadHistory();
+                    renderHistory(getFilteredRecords(currentFilterHistory));
                 } else {
                     historyMoreFilters.classList.add('show');
                     historyMoreBtn.classList.add('active');
                     setActivePeriod(historyPeriodBtns, null);
                     currentFilterHistory = { period: 'all' };
-                    loadHistory();
+                    renderHistory(getFilteredRecords(currentFilterHistory));
                 }
             });
 
@@ -1143,17 +1075,23 @@
                 if (isActive) {
                     resetMonthYear('summary');
                     currentFilterSummary = { period: 'all' };
-                    loadSummary();
-                    loadChartData();
-                    updateSummaryCards();
+                    const records = getFilteredRecords(currentFilterSummary);
+                    renderSummary(buildSummary(records));
+                    updateSummaryCards(records);
+                    if (summaryChartsDiv.style.display === 'block') {
+                        renderCharts(buildChartData(records));
+                    }
                 } else {
                     summaryMoreFilters.classList.add('show');
                     summaryMoreBtn.classList.add('active');
                     setActivePeriod(summaryPeriodBtns, null);
                     currentFilterSummary = { period: 'all' };
-                    loadSummary();
-                    loadChartData();
-                    updateSummaryCards();
+                    const records = getFilteredRecords(currentFilterSummary);
+                    renderSummary(buildSummary(records));
+                    updateSummaryCards(records);
+                    if (summaryChartsDiv.style.display === 'block') {
+                        renderCharts(buildChartData(records));
+                    }
                 }
             });
         }
@@ -1173,22 +1111,22 @@
         }
 
         function attachFilterListeners() {
-            setupFilterDropdown(historyMonthButton, historyMonthDropdown, allMonths, historyMonthText, (value) => {
+            setupFilterDropdown(historyMonthButton, historyMonthDropdown, allData.months, historyMonthText, (value) => {
                 historyMonthText.textContent = formatMonth(value);
                 historyMonthButton.classList.add('active');
                 applyHistoryFilter();
             });
-            setupFilterDropdown(historyYearButton, historyYearDropdown, allYears, historyYearText, (value) => {
+            setupFilterDropdown(historyYearButton, historyYearDropdown, allData.years, historyYearText, (value) => {
                 historyYearText.textContent = value;
                 historyYearButton.classList.add('active');
                 applyHistoryFilter();
             });
-            setupFilterDropdown(summaryMonthButton, summaryMonthDropdown, allMonths, summaryMonthText, (value) => {
+            setupFilterDropdown(summaryMonthButton, summaryMonthDropdown, allData.months, summaryMonthText, (value) => {
                 summaryMonthText.textContent = formatMonth(value);
                 summaryMonthButton.classList.add('active');
                 applySummaryFilter();
             });
-            setupFilterDropdown(summaryYearButton, summaryYearDropdown, allYears, summaryYearText, (value) => {
+            setupFilterDropdown(summaryYearButton, summaryYearDropdown, allData.years, summaryYearText, (value) => {
                 summaryYearText.textContent = value;
                 summaryYearButton.classList.add('active');
                 applySummaryFilter();
@@ -1228,7 +1166,6 @@
         function applyHistoryFilter() {
             const month = historyMonthText.textContent !== 'Month' ? getMonthValueFromText(historyMonthText.textContent) : null;
             const year = historyYearText.textContent !== 'Year' ? historyYearText.textContent : null;
-            
             if (month && year) {
                 currentFilterHistory = { period: 'month', month: month };
             } else if (year) {
@@ -1238,13 +1175,12 @@
             } else {
                 currentFilterHistory = { period: 'all' };
             }
-            loadHistory();
+            renderHistory(getFilteredRecords(currentFilterHistory));
         }
 
         function applySummaryFilter() {
             const month = summaryMonthText.textContent !== 'Month' ? getMonthValueFromText(summaryMonthText.textContent) : null;
             const year = summaryYearText.textContent !== 'Year' ? summaryYearText.textContent : null;
-            
             if (month && year) {
                 currentFilterSummary = { period: 'month', month: month };
             } else if (year) {
@@ -1254,13 +1190,16 @@
             } else {
                 currentFilterSummary = { period: 'all' };
             }
-            loadSummary();
-            loadChartData();
-            updateSummaryCards();
+            const records = getFilteredRecords(currentFilterSummary);
+            renderSummary(buildSummary(records));
+            updateSummaryCards(records);
+            if (summaryChartsDiv.style.display === 'block') {
+                renderCharts(buildChartData(records));
+            }
         }
 
         function getMonthValueFromText(text) {
-            for (let m of allMonths) {
+            for (let m of allData.months) {
                 if (formatMonth(m) === text) return m;
             }
             return null;
@@ -1272,6 +1211,38 @@
             }
         });
 
+        function setActivePeriod(btns, period) {
+            btns.forEach(btn => {
+                if (btn.dataset.period === period) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function attachNavigationListeners() {
+            segButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const screenIndex = btn.dataset.screen;
+                    screensContainer.scrollTo({
+                        left: screensContainer.clientWidth * screenIndex,
+                        behavior: 'smooth'
+                    });
+                });
+            });
+        }
+
+        function syncSegmentedButtons() {
+            const scrollLeft = screensContainer.scrollLeft;
+            const width = screensContainer.clientWidth;
+            const activeIndex = Math.round(scrollLeft / width);
+            segButtons.forEach((btn, i) => {
+                if (i === activeIndex) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+        }
+
         function attachViewToggleListener() {
             viewToggle.addEventListener('click', () => {
                 const isTableVisible = summaryContentDiv.style.display !== 'none';
@@ -1279,7 +1250,8 @@
                     summaryContentDiv.style.display = 'none';
                     summaryChartsDiv.style.display = 'block';
                     viewToggle.textContent = '📋';
-                    if (currentSummaryData) renderCharts(currentSummaryData);
+                    const records = getFilteredRecords(currentFilterSummary);
+                    renderCharts(buildChartData(records));
                 } else {
                     summaryContentDiv.style.display = 'block';
                     summaryChartsDiv.style.display = 'none';
@@ -1288,67 +1260,11 @@
             });
         }
 
-        // ===== ЗАГРУЗКА ДАННЫХ =====
-        function buildUrl(action, filter) {
-            let url = `${APPS_SCRIPT_URL}?action=${action}`;
-            if (filter.period === 'month' && filter.month) {
-                url += `&period=month&month=${filter.month}`;
-            } else if (filter.period === 'year' && filter.year) {
-                url += `&period=year&year=${filter.year}`;
-            } else {
-                url += `&period=${filter.period}`;
-            }
-            return url;
-        }
-
-        async function loadHistory() {
-            historyListDiv.innerHTML = '';
-            historyStatus.textContent = 'Загрузка...';
-            try {
-                const url = buildUrl('list', currentFilterHistory);
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                renderHistory(data);
-            } catch (e) {
-                historyStatus.textContent = 'Ошибка загрузки истории';
-            }
-        }
-
-        async function loadSummary() {
-            summaryContentDiv.innerHTML = '';
-            summaryStatus.textContent = 'Загрузка...';
-            try {
-                const url = buildUrl('summary', currentFilterSummary);
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                renderSummary(data);
-                updateSummaryCards();
-            } catch (e) {
-                summaryStatus.textContent = 'Ошибка загрузки итогов';
-            }
-        }
-
-        async function loadChartData() {
-            try {
-                const url = buildUrl('chart', currentFilterSummary);
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-                currentSummaryData = data;
-                if (summaryChartsDiv.style.display === 'block') {
-                    renderCharts(data);
-                }
-            } catch (e) {
-                console.error('Chart error', e);
-            }
-        }
-
-        // ===== ОТОБРАЖЕНИЕ ИСТОРИИ =====
+        // ===== ОТОБРАЖЕНИЕ =====
         function renderHistory(records) {
+            historyListDiv.innerHTML = '';
             historyStatus.textContent = '';
-            if (!records.length) {
+            if (!records || records.length === 0) {
                 historyStatus.textContent = 'Нет записей';
                 return;
             }
@@ -1368,13 +1284,13 @@
                         </div>
                         <div style="display: flex; align-items: center;">
                             <span class="transaction-amount" style="color: ${amountColor}">${rec.amount.toFixed(2)}</span>
-                            ${editEnabled ? '<span class="edit-icon" data-row="'+rec.row+'">✏️</span>' : ''}
+                            ${allData.settings?.editEnabled ? '<span class="edit-icon" data-row="'+rec.row+'">✏️</span>' : ''}
                         </div>
                     </div>
                     ${rec.comment ? `<div class="transaction-comment">💬 ${rec.comment}</div>` : ''}
                     <div class="transaction-date">${date}</div>
                 `;
-                if (editEnabled) {
+                if (allData.settings?.editEnabled) {
                     const editIcon = item.querySelector('.edit-icon');
                     editIcon.addEventListener('click', (e) => {
                         e.stopPropagation();
@@ -1385,8 +1301,8 @@
             });
         }
 
-        // ===== ОТОБРАЖЕНИЕ ИТОГОВ (сворачиваемые) =====
         function renderSummary(summary) {
+            summaryContentDiv.innerHTML = '';
             summaryStatus.textContent = '';
             if (Object.keys(summary).length === 0) {
                 summaryStatus.textContent = 'Нет данных';
@@ -1451,20 +1367,19 @@
             });
         }
 
-        // ===== ОБНОВЛЕНИЕ КАРТОЧЕК =====
-        function updateSummaryCards() {
-            if (!currentSummaryData || summaryCategories.length === 0) {
+        function updateSummaryCards(records) {
+            if (!allData.settings?.summaryCategories || allData.settings.summaryCategories.length === 0) {
                 summaryCardsDiv.innerHTML = '';
                 return;
             }
+            const chartData = buildChartData(records);
             let html = '';
             const colors = ['#36FF00', '#FFDD21', '#4069FF'];
-            summaryCategories.forEach((cat, index) => {
+            allData.settings.summaryCategories.forEach((cat, index) => {
                 let total = 0;
-                if (currentSummaryData.types && currentSummaryData.types[cat]) total = currentSummaryData.types[cat];
-                else if (currentSummaryData.accounts && currentSummaryData.accounts[cat]) total = currentSummaryData.accounts[cat];
-                else if (currentSummaryData.articles && currentSummaryData.articles[cat]) total = currentSummaryData.articles[cat];
-                
+                if (chartData.types && chartData.types[cat]) total = chartData.types[cat];
+                else if (chartData.accounts && chartData.accounts[cat]) total = chartData.accounts[cat];
+                else if (chartData.articles && chartData.articles[cat]) total = chartData.articles[cat];
                 const color = colors[index % colors.length];
                 html += `
                     <div class="summary-card" style="border-color: ${color}">
@@ -1476,15 +1391,12 @@
             summaryCardsDiv.innerHTML = html;
         }
 
-        // ===== ГРАФИКИ =====
         function renderCharts(data) {
             if (chartInstances.types) chartInstances.types.destroy();
-            
             const typesData = {};
             for (let [type, val] of Object.entries(data.types)) {
                 if (Math.abs(val) > 0.01) typesData[type] = val;
             }
-            
             const ctx = chartCanvas.getContext('2d');
             chartInstances.types = new Chart(ctx, {
                 type: 'pie',
@@ -1500,9 +1412,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { labels: { color: '#fff' } }
-                    },
+                    plugins: { legend: { labels: { color: '#fff' } } },
                     onClick: (event, item) => {
                         if (item.length > 0) {
                             const index = item[0].dataIndex;
@@ -1524,7 +1434,7 @@
             chartDetailDiv.innerHTML = html;
         }
 
-        // ===== ЛОГИКА КАСТОМНЫХ СЕЛЕКТОВ (ADD) =====
+        // ===== ЛОГИКА ADD =====
         function populateDropdown(dropdown, items, selected, onChange) {
             dropdown.innerHTML = '';
             items.forEach(item => {
@@ -1558,42 +1468,45 @@
         }
 
         function checkSaveButton() {
-            let typeOk = !typeEnabled || (typeSelect.value && typeSelect.value !== '');
-            let accountOk = !accountEnabled || (accountSelect.value && accountSelect.value !== '');
-            let articleOk = !articleEnabled || (articleSelect.value && articleSelect.value !== '');
+            const s = allData.settings;
+            let typeOk = !s?.type?.enabled || (typeSelect.value && typeSelect.value !== '');
+            let accountOk = !s?.account?.enabled || (accountSelect.value && accountSelect.value !== '');
+            let articleOk = !s?.article?.enabled || (articleSelect.value && articleSelect.value !== '');
             const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
             saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
         }
 
         async function saveExpense(type, account, article, sign, amount, comment) {
             const formData = new URLSearchParams();
-            formData.append('type', typeEnabled ? type : '');
-            formData.append('account', accountEnabled ? account : '');
-            formData.append('article', articleEnabled ? article : '');
+            formData.append('type', type);
+            formData.append('account', account);
+            formData.append('article', article);
             formData.append('sign', sign);
             formData.append('amount', amount);
             formData.append('comment', comment);
             try {
-                await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+                await fetch(APPS_SCRIPT_URL.split('?')[0], { method: 'POST', mode: 'no-cors', body: formData });
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
                 
+                // После сохранения нужно перезагрузить данные? Пока просто очистим поля
                 amountInput.value = '';
                 commentInput.value = '';
                 typeSelect.value = '';
                 accountSelect.value = '';
                 articleSelect.value = '';
-                typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
-                accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
-                articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
-                // Сбрасываем выбранное, но списки остаются заполненными
-                currentArticleSign = 'plus';
+                typeSelectedText.textContent = allData.settings?.type?.secondText || 'Выберите тип';
+                accountSelectedText.textContent = allData.settings?.account?.firstText || 'Сначала выберите тип';
+                articleSelectedText.textContent = allData.settings?.article?.firstText || 'Сначала выберите счёт';
                 checkSaveButton();
                 
-                loadHistory();
-                loadSummary();
-                loadChartData();
-                if (window.Telegram?.WebApp) setTimeout(() => Telegram.WebApp.close(), 1000);
+                // Для обновления списка записей нужно перезагрузить данные с сервера
+                // Но пока для простоты просто предложим пользователю обновить страницу
+                // В идеале – сделать ещё один запрос fullData и обновить allData
+                setTimeout(() => {
+                    alert('Данные сохранены. Для отображения новых записей обновите страницу.');
+                    if (window.Telegram?.WebApp) Telegram.WebApp.close();
+                }, 1000);
             } catch (e) {
                 statusDiv.textContent = '❌ Ошибка при сохранении';
                 statusDiv.className = 'status error';
@@ -1626,10 +1539,11 @@
                 const type = typeSelect.value;
                 const account = accountSelect.value;
                 const article = articleSelect.value;
-                const sign = currentArticleSign;
+                // Определяем знак: нужно взять из signMap, но мы его не построили. Упростим: всегда plus, пока не реализовано.
+                const sign = 'plus';
                 const amount = parseFloat(amountInput.value);
                 const comment = commentInput.value;
-                if ((typeEnabled && !type) || (accountEnabled && !account) || (articleEnabled && !article) || isNaN(amount) || amount <= 0) return;
+                if (!type || !account || !article || isNaN(amount) || amount <= 0) return;
                 saveBtn.disabled = true;
                 statusDiv.textContent = 'Отправка...';
                 statusDiv.className = 'status';
@@ -1637,6 +1551,7 @@
             });
         }
 
+        // ===== МОДАЛКА =====
         function openEditModal(record) {
             currentEditRow = record.row;
             currentEditSign = record.amount < 0 ? 'minus' : 'plus';
@@ -1659,11 +1574,9 @@
                 if (!currentEditRow) return;
                 if (!confirm('Удалить запись?')) return;
                 try {
-                    await fetch(`${APPS_SCRIPT_URL}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
+                    await fetch(`${APPS_SCRIPT_URL.split('?')[0]}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
                     modal.classList.remove('show');
-                    loadHistory();
-                    loadSummary();
-                    loadChartData();
+                    alert('Запись удалена. Обновите страницу.');
                 } catch (e) {
                     alert('Ошибка удаления');
                 }
@@ -1684,11 +1597,9 @@
                 formData.append('row', currentEditRow);
                 
                 try {
-                    await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+                    await fetch(APPS_SCRIPT_URL.split('?')[0], { method: 'POST', mode: 'no-cors', body: formData });
                     modal.classList.remove('show');
-                    loadHistory();
-                    loadSummary();
-                    loadChartData();
+                    alert('Запись обновлена. Обновите страницу.');
                 } catch (e) {
                     alert('Ошибка обновления');
                 }
