@@ -6,7 +6,6 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Все стили без изменений (как в последней рабочей версии) */
         * {
             margin: 0;
             padding: 0;
@@ -1416,6 +1415,8 @@
                     let accountTotal = 0;
                     let articlesHtml = '';
                     for (let article in summary[type][account]) {
+                        // Пропускаем служебную статью __start__
+                        if (article === '__start__') continue;
                         let amount = summary[type][account][article];
                         accountTotal += amount;
                         const amountColor = amount < 0 ? '#ff4646' : '#36FF00';
