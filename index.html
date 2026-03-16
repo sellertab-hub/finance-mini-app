@@ -6,7 +6,7 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Стили без изменений – см. предыдущую версию */
+        /* все стили как в предыдущей версии */
         * {
             margin: 0;
             padding: 0;
@@ -715,12 +715,13 @@
 
     <script>
         // ===== НАСТРОЙКИ =====
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ НА ВАШ URL
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-        let categoriesData = null;
-        let allAccounts = [];
-        let allArticles = [];
+        let categoriesData = null;          // иерархия { type: { account: [ { name, sign } ] } }
+        let allTypes = [];                  // все типы из столбца A (для независимого режима)
+        let allAccounts = [];                // все счета из столбца B
+        let allArticles = [];                // все статьи из столбца C
         let settingsData = null;
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'all' };
@@ -742,7 +743,7 @@
         let summaryCategories = [];
         let signColumn = 3;
 
-        let signMap = new Map();
+        let signMap = new Map(); // карта знаков для ключей (тип/счёт/статья в зависимости от signColumn)
 
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
@@ -921,10 +922,20 @@
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 categoriesData = data.categories || {};
+                allTypes = data.allTypes || [];
                 allAccounts = data.allAccounts || [];
                 allArticles = data.allArticles || [];
                 
+                console.log('Categories loaded', categoriesData);
+                console.log('All types:', allTypes);
+                console.log('All accounts:', allAccounts);
+                console.log('All articles:', allArticles);
+                
+                // Построим signMap на основе всех строк (для определения знака по выбранному ключу)
                 signMap.clear();
+                // Для этого нам нужны все строки, но у нас есть только иерархия. Придётся перестраивать из иерархии? 
+                // В иерархии уже есть все полные строки. Для неполных строк знак не определён, но они не попадают в иерархию.
+                // Поэтому signMap будет только для тех комбинаций, которые есть в иерархии.
                 for (let type in categoriesData) {
                     for (let account in categoriesData[type]) {
                         categoriesData[type][account].forEach(art => {
@@ -939,6 +950,7 @@
                     }
                 }
                 
+                // Теперь заполняем выпадающие списки
                 populateTypeDropdown();
                 populateAccountDropdown(allAccounts);
                 populateArticleDropdown(allArticles);
@@ -949,11 +961,20 @@
             }
         }
 
+        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ =====
         function populateTypeDropdown() {
-            const types = Object.keys(categoriesData).sort();
+            let items;
+            if (linked) {
+                // В связанном режиме используем иерархию типов (только те, у которых есть полные строки)
+                items = Object.keys(categoriesData).sort();
+            } else {
+                // В независимом режиме используем все типы из столбца A
+                items = allTypes;
+            }
+            
             typeSelect.innerHTML = '';
             typeDropdown.innerHTML = '';
-            types.forEach(t => {
+            items.forEach(t => {
                 const option = document.createElement('option');
                 option.value = t;
                 option.textContent = t;
@@ -961,7 +982,7 @@
             });
             typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
             typeButton.disabled = false;
-            populateDropdown(typeDropdown, types, null, (value) => {
+            populateDropdown(typeDropdown, items, null, (value) => {
                 typeSelect.value = value;
                 typeSelectedText.textContent = value;
                 if (signColumn === 1) {
@@ -1033,6 +1054,7 @@
             });
         }
 
+        // Функции для связанного режима
         function updateAccountOptionsLinked() {
             const type = typeSelect.value;
             if (!type) return;
@@ -1108,7 +1130,7 @@
             });
         }
 
-        // ===== ФИЛЬТРЫ =====
+        // ===== ФИЛЬТРЫ (без изменений) =====
         function attachPeriodListeners() {
             historyPeriodBtns.forEach(btn => {
                 if (btn.id && btn.id.includes('MoreBtn')) return;
@@ -1398,7 +1420,6 @@
             });
         }
 
-        // ===== ОБНОВЛЁННАЯ ФУНКЦИЯ renderSummary =====
         function renderSummary(summary) {
             summaryStatus.textContent = '';
             if (Object.keys(summary).length === 0) {
@@ -1413,7 +1434,7 @@
                     let accountTotal = 0;
                     let articlesHtml = '';
                     for (let article in summary[type][account]) {
-                        // Скрываем статьи, начинающиеся с флажка (стартовые записи)
+                        // Пропускаем служебную статью с флажком
                         if (article.startsWith('🏁')) continue;
                         let amount = summary[type][account][article];
                         accountTotal += amount;
