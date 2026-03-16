@@ -6,6 +6,7 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* Стили без изменений – см. предыдущую версию */
         * {
             margin: 0;
             padding: 0;
@@ -707,7 +708,7 @@
             <div class="modal-buttons">
                 <button class="modal-btn delete" id="deleteBtn">Удалить</button>
                 <button class="modal-btn cancel" id="cancelBtn">Отмена</button>
-                <button class="modal-btn edit" id="updateBtn">Сохранить</button>
+                <button class="modal-btn.edit" id="updateBtn">Сохранить</button>
             </div>
         </div>
     </div>
@@ -718,8 +719,8 @@
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;
-        let allAccounts = [];       // все счета (из всех строк)
-        let allArticles = [];       // все статьи (из всех строк)
+        let allAccounts = [];
+        let allArticles = [];
         let settingsData = null;
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'all' };
@@ -922,10 +923,6 @@
                 categoriesData = data.categories || {};
                 allAccounts = data.allAccounts || [];
                 allArticles = data.allArticles || [];
-                
-                console.log('Categories loaded', categoriesData);
-                console.log('All accounts:', allAccounts);
-                console.log('All articles:', allArticles);
                 
                 signMap.clear();
                 for (let type in categoriesData) {
@@ -1401,6 +1398,7 @@
             });
         }
 
+        // ===== ОБНОВЛЁННАЯ ФУНКЦИЯ renderSummary =====
         function renderSummary(summary) {
             summaryStatus.textContent = '';
             if (Object.keys(summary).length === 0) {
@@ -1415,8 +1413,8 @@
                     let accountTotal = 0;
                     let articlesHtml = '';
                     for (let article in summary[type][account]) {
-                        // Пропускаем служебную статью __start__
-                        if (article === '__start__') continue;
+                        // Скрываем статьи, начинающиеся с флажка (стартовые записи)
+                        if (article.startsWith('🏁')) continue;
                         let amount = summary[type][account][article];
                         accountTotal += amount;
                         const amountColor = amount < 0 ? '#ff4646' : '#36FF00';
