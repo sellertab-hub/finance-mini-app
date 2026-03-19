@@ -577,6 +577,94 @@
             background: #36FF00;
             color: #000;
         }
+
+        /* ===== Connection / Setup overlay ===== */
+        .connection-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.92);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 2000;
+        }
+        .connection-overlay.show {
+            display: flex;
+        }
+        .connection-card {
+            width: 100%;
+            max-width: 420px;
+            background: #0c0c0c;
+            border: 1px solid #222;
+            border-radius: 24px;
+            padding: 16px;
+        }
+        .connection-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .connection-hint {
+            color: #aaa;
+            font-size: 13px;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+        .connection-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .connection-actions button {
+            margin-top: 0;
+            padding: 12px;
+            border-radius: 16px;
+            font-size: 14px;
+        }
+        .connection-actions .secondary {
+            background: #444;
+            color: #fff;
+        }
+        .connection-actions .danger {
+            background: #ff4646;
+            color: #fff;
+        }
+        .connection-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 16px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #aaa;
+            display: none;
+            font-size: 13px;
+        }
+        .connection-status.show { display: block; }
+        .connection-status.error { color: #ff4646; border-color: #ff4646; background: rgba(255, 70, 70, 0.12); }
+        .connection-status.success { color: #36FF00; border-color: #36FF00; background: rgba(54, 255, 0, 0.12); }
+
+        .connection-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 38px;
+            height: 38px;
+            border-radius: 40px;
+            border: 2px solid #444;
+            background: transparent;
+            color: #aaa;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            font-size: 18px;
+        }
+        .connection-btn:hover {
+            border-color: #36FF00;
+            color: #36FF00;
+        }
     </style>
 </head>
 <body>
@@ -584,10 +672,32 @@
         <img src="logo.png" alt="Finance Logo" class="loading-logo">
     </div>
 
+    <!-- Первичная настройка подключения к Apps Script -->
+    <div class="connection-overlay" id="connectionOverlay" aria-hidden="true">
+        <div class="connection-card">
+            <div class="connection-title">Подключение</div>
+            <div class="connection-hint">
+                Вставьте ссылку на ваш Google Apps Script Web App (формат <code>https://script.google.com/macros/s/.../exec</code>).
+                Ссылка сохранится локально в браузере (localStorage).
+            </div>
+            <input type="text" id="appUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
+            <div class="connection-actions">
+                <button id="testConnectionBtn" class="secondary" type="button">Проверить</button>
+                <button id="saveConnectionBtn" type="button">Сохранить</button>
+            </div>
+            <div class="connection-actions" style="margin-top: 8px;">
+                <button id="clearConnectionBtn" class="danger" type="button">Сбросить</button>
+                <button id="cancelConnectionBtn" class="secondary" type="button">Отмена</button>
+            </div>
+            <div class="connection-status" id="connectionStatus"></div>
+        </div>
+    </div>
+
     <div class="app-container" id="appContainer" style="display: none;">
         <div class="logo-area">
             <img src="logo.png" alt="Finance Logo" class="logo-image">
         </div>
+        <button class="connection-btn" id="connectionBtn" title="Настройки подключения" type="button">⚙️</button>
 
         <div class="segmented-control">
             <button class="segmented-btn active" data-screen="0">ADD</button>
@@ -714,8 +824,88 @@
     </div>
 
     <script>
-        // ===== НАСТРОЙКИ =====
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxukbNXFCK7In9hYlq7frZjFPrOXA0URGN87mSjaeHLTHcM_0rpaJ5c3IURHzCyjEvudg/exec'; // ЗАМЕНИТЕ
+        // ===== НАСТРОЙКИ ПОДКЛЮЧЕНИЯ (localStorage) =====
+        const APP_URL_STORAGE_KEY = 'sellertab_fin_appUrl';
+        let cachedAppUrl = null;
+        let appInitialized = false;
+
+        function normalizeAppUrl(url) {
+            if (!url) return '';
+            let u = String(url).trim();
+            u = u.replace(/\s+/g, '');
+            u = u.split('#')[0];
+            u = u.split('?')[0];
+            u = u.replace(/\/+$/, '');
+            return u;
+        }
+
+        function isLikelyAppsScriptUrl(url) {
+            const u = normalizeAppUrl(url);
+            return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/i.test(u);
+        }
+
+        function getAppUrl() {
+            if (cachedAppUrl) return cachedAppUrl;
+            const saved = localStorage.getItem(APP_URL_STORAGE_KEY);
+            const normalized = normalizeAppUrl(saved);
+            cachedAppUrl = normalized || null;
+            return cachedAppUrl;
+        }
+
+        function getAppUrlRequired() {
+            const u = getAppUrl();
+            if (!u) throw new Error('Не настроено подключение к Apps Script');
+            return u;
+        }
+
+        function saveAppUrl(url) {
+            const normalized = normalizeAppUrl(url);
+            localStorage.setItem(APP_URL_STORAGE_KEY, normalized);
+            cachedAppUrl = normalized;
+        }
+
+        function clearAppUrl() {
+            localStorage.removeItem(APP_URL_STORAGE_KEY);
+            cachedAppUrl = null;
+        }
+
+        function setConnectionStatus(message, type) {
+            connectionStatus.textContent = message || '';
+            connectionStatus.classList.remove('show', 'error', 'success');
+            if (message) {
+                connectionStatus.classList.add('show');
+                if (type) connectionStatus.classList.add(type);
+            }
+        }
+
+        function showConnectionOverlay({ allowCancel }) {
+            const current = getAppUrl();
+            appUrlInput.value = current || '';
+            cancelConnectionBtn.style.display = allowCancel ? 'block' : 'none';
+            clearConnectionBtn.style.display = current ? 'block' : 'none';
+            setConnectionStatus('', null);
+            connectionOverlay.classList.add('show');
+            connectionOverlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function hideConnectionOverlay() {
+            connectionOverlay.classList.remove('show');
+            connectionOverlay.setAttribute('aria-hidden', 'true');
+            setConnectionStatus('', null);
+        }
+
+        async function testConnection(url) {
+            const u = normalizeAppUrl(url);
+            if (!isLikelyAppsScriptUrl(u)) {
+                throw new Error('Ссылка должна быть вида https://script.google.com/macros/s/.../exec');
+            }
+            const res = await fetch(`${u}?action=settings`, { cache: 'no-store' });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!data) throw new Error('Некорректный ответ (не JSON)');
+            if (data.error) throw new Error(String(data.error));
+            return true;
+        }
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
         let categoriesData = null;          // иерархия { type: { account: [ { name, sign } ] } }
@@ -748,6 +938,16 @@
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
         const appContainer = document.getElementById('appContainer');
+
+        // Connection UI
+        const connectionOverlay = document.getElementById('connectionOverlay');
+        const appUrlInput = document.getElementById('appUrlInput');
+        const testConnectionBtn = document.getElementById('testConnectionBtn');
+        const saveConnectionBtn = document.getElementById('saveConnectionBtn');
+        const clearConnectionBtn = document.getElementById('clearConnectionBtn');
+        const cancelConnectionBtn = document.getElementById('cancelConnectionBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionBtn = document.getElementById('connectionBtn');
 
         const typeSelect = document.getElementById('typeSelect');
         const accountSelect = document.getElementById('accountSelect');
@@ -858,7 +1058,7 @@
         // ===== ЗАГРУЗКА ДАННЫХ =====
         async function loadMonths() {
             try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=months');
+                const res = await fetch(getAppUrlRequired() + '?action=months');
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 allMonths = data;
@@ -870,7 +1070,7 @@
 
         async function loadYears() {
             try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=years');
+                const res = await fetch(getAppUrlRequired() + '?action=years');
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 allYears = data;
@@ -882,7 +1082,7 @@
 
         async function loadSettings() {
             try {
-                const res = await fetch(APPS_SCRIPT_URL + '?action=settings');
+                const res = await fetch(getAppUrlRequired() + '?action=settings');
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 settingsData = data;
@@ -918,7 +1118,7 @@
 
         async function loadCategories() {
             try {
-                const res = await fetch(APPS_SCRIPT_URL);
+                const res = await fetch(getAppUrlRequired());
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 categoriesData = data.categories || {};
@@ -1326,7 +1526,7 @@
         }
 
         function buildUrl(action, filter) {
-            let url = `${APPS_SCRIPT_URL}?action=${action}`;
+            let url = `${getAppUrlRequired()}?action=${action}`;
             if (filter.period === 'month' && filter.month) {
                 url += `&period=month&month=${filter.month}`;
             } else if (filter.period === 'year' && filter.year) {
@@ -1604,7 +1804,7 @@
             formData.append('amount', amount);
             formData.append('comment', comment);
             try {
-                await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+                await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
                 
@@ -1688,7 +1888,7 @@
                 if (!currentEditRow) return;
                 if (!confirm('Удалить запись?')) return;
                 try {
-                    await fetch(`${APPS_SCRIPT_URL}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
+                    await fetch(`${getAppUrlRequired()}?action=delete&row=${currentEditRow}`, { mode: 'no-cors' });
                     modal.classList.remove('show');
                     loadHistory();
                     loadSummary();
@@ -1713,7 +1913,7 @@
                 formData.append('row', currentEditRow);
                 
                 try {
-                    await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+                    await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
                     modal.classList.remove('show');
                     loadHistory();
                     loadSummary();
@@ -1724,8 +1924,81 @@
             });
         }
 
+        async function refreshDataAfterReconnect() {
+            await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
+            loadHistory();
+            loadSummary();
+            loadChartData();
+        }
+
+        async function initApp() {
+            const existingUrl = getAppUrl();
+            if (!existingUrl) {
+                loadingScreen.classList.add('hidden');
+                appContainer.style.display = 'none';
+                showConnectionOverlay({ allowCancel: false });
+                return;
+            }
+
+            try {
+                await testConnection(existingUrl);
+            } catch (e) {
+                console.error('Connection test failed:', e);
+                loadingScreen.classList.add('hidden');
+                appContainer.style.display = 'none';
+                showConnectionOverlay({ allowCancel: false });
+                setConnectionStatus(`Не удалось подключиться: ${e.message}`, 'error');
+                return;
+            }
+
+            if (!appInitialized) {
+                appInitialized = true;
+                await init();
+            } else {
+                await refreshDataAfterReconnect();
+            }
+        }
+
+        function attachConnectionListeners() {
+            connectionBtn.addEventListener('click', () => showConnectionOverlay({ allowCancel: true }));
+
+            cancelConnectionBtn.addEventListener('click', () => hideConnectionOverlay());
+
+            clearConnectionBtn.addEventListener('click', () => {
+                clearAppUrl();
+                appContainer.style.display = 'none';
+                showConnectionOverlay({ allowCancel: false });
+                setConnectionStatus('Подключение сброшено. Введите новую ссылку.', 'success');
+            });
+
+            testConnectionBtn.addEventListener('click', async () => {
+                const url = appUrlInput.value;
+                setConnectionStatus('Проверяем подключение...', null);
+                try {
+                    await testConnection(url);
+                    setConnectionStatus('Подключение успешно.', 'success');
+                } catch (e) {
+                    setConnectionStatus(e.message, 'error');
+                }
+            });
+
+            saveConnectionBtn.addEventListener('click', async () => {
+                const url = appUrlInput.value;
+                setConnectionStatus('Проверяем и сохраняем...', null);
+                try {
+                    await testConnection(url);
+                    saveAppUrl(url);
+                    hideConnectionOverlay();
+                    await initApp();
+                } catch (e) {
+                    setConnectionStatus(e.message, 'error');
+                }
+            });
+        }
+
         // ===== СТАРТ =====
-        init();
+        attachConnectionListeners();
+        initApp();
 
         if (window.Telegram?.WebApp) Telegram.WebApp.ready();
     </script>
