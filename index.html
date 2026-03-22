@@ -509,7 +509,7 @@
             border: 1px solid #333;
         }
         .card-title {
-            font-size: 10px; /* уменьшенный шрифт названия */
+            font-size: 10px;
             color: #aaa;
             margin-bottom: 4px;
             text-transform: uppercase;
@@ -645,7 +645,6 @@
         .connection-status.error { color: #ff4646; border-color: #ff4646; background: rgba(255, 70, 70, 0.12); }
         .connection-status.success { color: #36FF00; border-color: #36FF00; background: rgba(54, 255, 0, 0.12); }
 
-        /* ===== Кнопка настроек ===== */
         .connection-btn {
             position: absolute;
             top: 8px;
@@ -674,7 +673,6 @@
         <img src="logo.png" alt="Finance Logo" class="loading-logo">
     </div>
 
-    <!-- Первичная настройка подключения к Apps Script -->
     <div class="connection-overlay" id="connectionOverlay" aria-hidden="true">
         <div class="connection-card">
             <div class="connection-title">Подключение</div>
@@ -710,7 +708,6 @@
         <div class="screens-container" id="screensContainer">
             <!-- ADD -->
             <div class="screen" id="screen0">
-                <!-- Карточки баланса (вверху) -->
                 <div class="summary-cards" id="summaryCardsAdd"></div>
 
                 <div class="custom-select" id="typeSelectContainer">
@@ -802,14 +799,12 @@
                     </div>
                     <div id="chartDetail" style="margin-top: 12px; color: #aaa; text-align: center;">Нажмите на сегмент для детализации</div>
                 </div>
-                <!-- Карточки на SUM (оставляем для совместимости, можно скрыть) -->
                 <div class="summary-cards" id="summaryCards"></div>
                 <div id="summaryStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно -->
     <div class="modal" id="editModal">
         <div class="modal-content">
             <div class="modal-title" id="modalTitle">Редактирование</div>
@@ -831,7 +826,7 @@
     </div>
 
     <script>
-        // ===== НАСТРОЙКИ ПОДКЛЮЧЕНИЯ (localStorage) =====
+        // ===== НАСТРОЙКИ ПОДКЛЮЧЕНИЯ =====
         const APP_URL_STORAGE_KEY = 'sellertab_fin_appUrl';
         let cachedAppUrl = null;
         let appInitialized = false;
@@ -877,27 +872,38 @@
         }
 
         function setConnectionStatus(message, type) {
-            connectionStatus.textContent = message || '';
-            connectionStatus.classList.remove('show', 'error', 'success');
+            const el = document.getElementById('connectionStatus');
+            if (!el) return;
+            el.textContent = message || '';
+            el.classList.remove('show', 'error', 'success');
             if (message) {
-                connectionStatus.classList.add('show');
-                if (type) connectionStatus.classList.add(type);
+                el.classList.add('show');
+                if (type) el.classList.add(type);
             }
         }
 
         function showConnectionOverlay({ allowCancel }) {
             const current = getAppUrl();
-            appUrlInput.value = current || '';
-            cancelConnectionBtn.style.display = allowCancel ? 'block' : 'none';
-            clearConnectionBtn.style.display = current ? 'block' : 'none';
+            const input = document.getElementById('appUrlInput');
+            if (input) input.value = current || '';
+            const cancelBtn = document.getElementById('cancelConnectionBtn');
+            const clearBtn = document.getElementById('clearConnectionBtn');
+            if (cancelBtn) cancelBtn.style.display = allowCancel ? 'block' : 'none';
+            if (clearBtn) clearBtn.style.display = current ? 'block' : 'none';
             setConnectionStatus('', null);
-            connectionOverlay.classList.add('show');
-            connectionOverlay.setAttribute('aria-hidden', 'false');
+            const overlay = document.getElementById('connectionOverlay');
+            if (overlay) {
+                overlay.classList.add('show');
+                overlay.setAttribute('aria-hidden', 'false');
+            }
         }
 
         function hideConnectionOverlay() {
-            connectionOverlay.classList.remove('show');
-            connectionOverlay.setAttribute('aria-hidden', 'true');
+            const overlay = document.getElementById('connectionOverlay');
+            if (overlay) {
+                overlay.classList.remove('show');
+                overlay.setAttribute('aria-hidden', 'true');
+            }
             setConnectionStatus('', null);
         }
 
@@ -915,10 +921,10 @@
         }
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-        let categoriesData = null;          // иерархия { type: { account: [ { name, sign } ] } }
-        let allTypes = [];                  // все типы из столбца A (для независимого режима)
-        let allAccounts = [];                // все счета из столбца B
-        let allArticles = [];                // все статьи из столбца C
+        let categoriesData = null;
+        let allTypes = [];
+        let allAccounts = [];
+        let allArticles = [];
         let settingsData = null;
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'all' };
@@ -926,7 +932,7 @@
         let activeFilterDropdown = null;
         let currentArticleSign = 'plus';
         let chartInstances = {};
-        let currentSummaryData = null;   // данные для графиков (chart)
+        let currentSummaryData = null;
         let currentEditRow = null;
         let currentEditSign = 'plus';
         let allMonths = [];
@@ -940,21 +946,11 @@
         let summaryCategories = [];
         let signColumn = 3;
 
-        let signMap = new Map(); // карта знаков для ключей (тип/счёт/статья в зависимости от signColumn)
+        let signMap = new Map();
 
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
         const appContainer = document.getElementById('appContainer');
-
-        // Connection UI
-        const connectionOverlay = document.getElementById('connectionOverlay');
-        const appUrlInput = document.getElementById('appUrlInput');
-        const testConnectionBtn = document.getElementById('testConnectionBtn');
-        const saveConnectionBtn = document.getElementById('saveConnectionBtn');
-        const clearConnectionBtn = document.getElementById('clearConnectionBtn');
-        const cancelConnectionBtn = document.getElementById('cancelConnectionBtn');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const connectionBtn = document.getElementById('connectionBtn');
 
         const typeSelect = document.getElementById('typeSelect');
         const accountSelect = document.getElementById('accountSelect');
@@ -1007,8 +1003,8 @@
         const summaryStatus = document.getElementById('summaryStatus');
         const chartCanvas = document.getElementById('chartTypes');
         const chartDetailDiv = document.getElementById('chartDetail');
-        const summaryCardsDiv = document.getElementById('summaryCards');      // на SUM (оставлен)
-        const summaryCardsAddDiv = document.getElementById('summaryCardsAdd'); // на ADD
+        const summaryCardsDiv = document.getElementById('summaryCards');
+        const summaryCardsAddDiv = document.getElementById('summaryCardsAdd');
         const viewToggle = document.getElementById('viewToggle');
 
         const modal = document.getElementById('editModal');
@@ -1059,7 +1055,7 @@
                 const yearEnd = new Date(parseInt(filter.year), 11, 31, 23, 59, 59);
                 return date >= yearStart && date <= yearEnd;
             } else {
-                return true; // all
+                return true;
             }
         }
 
@@ -1134,12 +1130,6 @@
                 allAccounts = data.allAccounts || [];
                 allArticles = data.allArticles || [];
                 
-                console.log('Categories loaded', categoriesData);
-                console.log('All types:', allTypes);
-                console.log('All accounts:', allAccounts);
-                console.log('All articles:', allArticles);
-                
-                // Построим signMap
                 signMap.clear();
                 for (let type in categoriesData) {
                     for (let account in categoriesData[type]) {
@@ -1170,7 +1160,7 @@
             }
         }
 
-        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ =====
+        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ (с плейсхолдерами) =====
         function populateTypeDropdown() {
             let items;
             if (linked) {
@@ -1181,6 +1171,11 @@
             
             typeSelect.innerHTML = '';
             typeDropdown.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = settingsData?.type?.secondText || 'Выберите тип';
+            typeSelect.appendChild(placeholder);
+            
             items.forEach(t => {
                 const option = document.createElement('option');
                 option.value = t;
@@ -1189,6 +1184,7 @@
             });
             typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
             typeButton.disabled = false;
+            typeSelect.value = '';
             populateDropdown(typeDropdown, items, null, (value) => {
                 typeSelect.value = value;
                 typeSelectedText.textContent = value;
@@ -1204,12 +1200,17 @@
 
         function populateAccountDropdown(accounts) {
             accountSelect.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = settingsData?.account?.secondText || 'Выберите счёт';
+            accountSelect.appendChild(placeholder);
+            
             if (accounts.length === 0) {
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = 'Нет доступных счетов';
-                option.disabled = true;
-                accountSelect.appendChild(option);
+                const disabled = document.createElement('option');
+                disabled.value = '';
+                disabled.textContent = 'Нет доступных счетов';
+                disabled.disabled = true;
+                accountSelect.appendChild(disabled);
             } else {
                 accounts.forEach(acc => {
                     const option = document.createElement('option');
@@ -1220,6 +1221,7 @@
             }
             accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
             accountButton.disabled = false;
+            accountSelect.value = '';
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
@@ -1235,12 +1237,17 @@
 
         function populateArticleDropdown(articles) {
             articleSelect.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = settingsData?.article?.secondText || 'Выберите статью';
+            articleSelect.appendChild(placeholder);
+            
             if (articles.length === 0) {
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = 'Нет доступных статей';
-                option.disabled = true;
-                articleSelect.appendChild(option);
+                const disabled = document.createElement('option');
+                disabled.value = '';
+                disabled.textContent = 'Нет доступных статей';
+                disabled.disabled = true;
+                articleSelect.appendChild(disabled);
             } else {
                 articles.forEach(art => {
                     const option = document.createElement('option');
@@ -1251,6 +1258,7 @@
             }
             articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
             articleButton.disabled = false;
+            articleSelect.value = '';
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value;
                 articleSelectedText.textContent = value;
@@ -1261,12 +1269,33 @@
             });
         }
 
-        // Функции для связанного режима
         function updateAccountOptionsLinked() {
             const type = typeSelect.value;
             if (!type) return;
             const accounts = Object.keys(categoriesData[type] || {}).sort();
-            populateAccountDropdown(accounts);
+            accountSelect.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = settingsData?.account?.secondText || 'Выберите счёт';
+            accountSelect.appendChild(placeholder);
+            accounts.forEach(acc => {
+                const option = document.createElement('option');
+                option.value = acc;
+                option.textContent = acc;
+                accountSelect.appendChild(option);
+            });
+            accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
+            accountButton.disabled = false;
+            accountSelect.value = '';
+            populateDropdown(accountDropdown, accounts, null, (value) => {
+                accountSelect.value = value;
+                accountSelectedText.textContent = value;
+                if (signColumn === 2) {
+                    currentArticleSign = signMap.get(value) || 'plus';
+                }
+                updateArticleOptionsLinked();
+                checkSaveButton();
+            });
         }
 
         function updateArticleOptionsLinked() {
@@ -1274,18 +1303,51 @@
             const account = accountSelect.value;
             if (!type || !account) return;
             const articles = (categoriesData[type][account] || []).map(a => a.name);
-            populateArticleDropdown(articles);
+            articleSelect.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = settingsData?.article?.secondText || 'Выберите статью';
+            articleSelect.appendChild(placeholder);
+            articles.forEach(art => {
+                const option = document.createElement('option');
+                option.value = art;
+                option.textContent = art;
+                articleSelect.appendChild(option);
+            });
+            articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
+            articleButton.disabled = false;
+            articleSelect.value = '';
+            populateDropdown(articleDropdown, articles, null, (value) => {
+                articleSelect.value = value;
+                articleSelectedText.textContent = value;
+                if (signColumn === 3) {
+                    currentArticleSign = signMap.get(value) || 'plus';
+                }
+                checkSaveButton();
+            });
         }
 
         function resetAccountAndArticle() {
-            accountSelect.value = '';
+            // Счёт
+            accountSelect.innerHTML = '';
+            const placeholderAcc = document.createElement('option');
+            placeholderAcc.value = '';
+            placeholderAcc.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
+            accountSelect.appendChild(placeholderAcc);
             accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
             accountButton.disabled = true;
             accountDropdown.innerHTML = '';
-            articleSelect.value = '';
+            accountSelect.value = '';
+            // Статья
+            articleSelect.innerHTML = '';
+            const placeholderArt = document.createElement('option');
+            placeholderArt.value = '';
+            placeholderArt.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
+            articleSelect.appendChild(placeholderArt);
             articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
             articleButton.disabled = true;
             articleDropdown.innerHTML = '';
+            articleSelect.value = '';
             if (signColumn !== 1) currentArticleSign = 'plus';
         }
 
@@ -1575,7 +1637,7 @@
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 renderSummary(data);
-                updateCardsFromSummary(data); // обновляем карточки на основе сводки
+                updateCardsFromSummary(data);
             } catch (e) {
                 summaryStatus.textContent = 'Ошибка загрузки итогов';
             }
@@ -1701,7 +1763,6 @@
             });
         }
 
-        // Новая функция обновления карточек из summary-данных
         function updateCardsFromSummary(summary) {
             if (!summaryCategories.length) {
                 if (summaryCardsAddDiv) summaryCardsAddDiv.innerHTML = '';
@@ -1712,9 +1773,8 @@
             let htmlAdd = '';
             let htmlSum = '';
             summaryCategories.forEach((cat, index) => {
-                // Ищем сумму по категории в трёх уровнях summary
                 let total = 0;
-                // Ищем в типах
+                // ищем в типах
                 for (let type in summary) {
                     if (type === cat) {
                         for (let account in summary[type]) {
@@ -1725,7 +1785,7 @@
                         break;
                     }
                 }
-                // Если не нашли в типах, ищем в счетах
+                // если не нашли в типах, ищем в счетах
                 if (total === 0) {
                     for (let type in summary) {
                         for (let account in summary[type]) {
@@ -1738,7 +1798,7 @@
                         }
                     }
                 }
-                // Если не нашли, ищем в статьях
+                // если не нашли, ищем в статьях
                 if (total === 0) {
                     for (let type in summary) {
                         for (let account in summary[type]) {
@@ -1872,7 +1932,6 @@
                 currentArticleSign = 'plus';
                 checkSaveButton();
                 
-                // Перезагружаем данные
                 loadHistory();
                 loadSummary();
                 loadChartData();
@@ -2014,19 +2073,20 @@
         }
 
         function attachConnectionListeners() {
-            connectionBtn.addEventListener('click', () => showConnectionOverlay({ allowCancel: true }));
-
-            cancelConnectionBtn.addEventListener('click', () => hideConnectionOverlay());
-
-            clearConnectionBtn.addEventListener('click', () => {
+            const btn = document.getElementById('connectionBtn');
+            if (btn) btn.addEventListener('click', () => showConnectionOverlay({ allowCancel: true }));
+            const cancelBtn = document.getElementById('cancelConnectionBtn');
+            if (cancelBtn) cancelBtn.addEventListener('click', () => hideConnectionOverlay());
+            const clearBtn = document.getElementById('clearConnectionBtn');
+            if (clearBtn) clearBtn.addEventListener('click', () => {
                 clearAppUrl();
                 appContainer.style.display = 'none';
                 showConnectionOverlay({ allowCancel: false });
                 setConnectionStatus('Подключение сброшено. Введите новую ссылку.', 'success');
             });
-
-            testConnectionBtn.addEventListener('click', async () => {
-                const url = appUrlInput.value;
+            const testBtn = document.getElementById('testConnectionBtn');
+            if (testBtn) testBtn.addEventListener('click', async () => {
+                const url = document.getElementById('appUrlInput')?.value || '';
                 setConnectionStatus('Проверяем подключение...', null);
                 try {
                     await testConnection(url);
@@ -2035,9 +2095,9 @@
                     setConnectionStatus(e.message, 'error');
                 }
             });
-
-            saveConnectionBtn.addEventListener('click', async () => {
-                const url = appUrlInput.value;
+            const saveConnBtn = document.getElementById('saveConnectionBtn');
+            if (saveConnBtn) saveConnBtn.addEventListener('click', async () => {
+                const url = document.getElementById('appUrlInput')?.value || '';
                 setConnectionStatus('Проверяем и сохраняем...', null);
                 try {
                     await testConnection(url);
