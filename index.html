@@ -254,6 +254,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: border 0.2s, box-shadow 0.2s;
         }
         .select-button .arrow {
             width: 16px;
@@ -312,7 +313,7 @@
             font-size: 16px;
             color: #fff;
             outline: none;
-            transition: all 0.2s ease;
+            transition: border 0.2s, box-shadow 0.2s;
             font-family: inherit;
             margin-bottom: 10px;
         }
@@ -323,6 +324,12 @@
         textarea {
             min-height: 70px;
             resize: vertical;
+        }
+
+        /* Стиль для ошибки */
+        .select-button.error, input.error {
+            border-color: #ff4646 !important;
+            box-shadow: 0 0 0 2px rgba(255, 70, 70, 0.3) !important;
         }
 
         button {
@@ -579,7 +586,7 @@
             color: #000;
         }
 
-        /* ===== Connection / Setup overlay ===== */
+        /* Connection overlay */
         .connection-overlay {
             position: fixed;
             inset: 0;
@@ -1351,6 +1358,45 @@
             if (signColumn !== 1) currentArticleSign = 'plus';
         }
 
+        // ===== ПОДСВЕТКА ОШИБОК =====
+        function updateErrorHighlights() {
+            // Тип
+            if (typeEnabled) {
+                const typeOk = typeSelect.value && typeSelect.value !== '';
+                typeButton.classList.toggle('error', !typeOk);
+            } else {
+                typeButton.classList.remove('error');
+            }
+            // Счёт
+            if (accountEnabled) {
+                const accountOk = accountSelect.value && accountSelect.value !== '';
+                accountButton.classList.toggle('error', !accountOk);
+            } else {
+                accountButton.classList.remove('error');
+            }
+            // Статья
+            if (articleEnabled) {
+                const articleOk = articleSelect.value && articleSelect.value !== '';
+                articleButton.classList.toggle('error', !articleOk);
+            } else {
+                articleButton.classList.remove('error');
+            }
+            // Сумма
+            const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
+            amountInput.classList.toggle('error', !amountOk);
+        }
+
+        // ===== ВИБРАЦИЯ =====
+        function vibrateSuccess() {
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+                for (let i = 0; i < 3; i++) {
+                    setTimeout(() => {
+                        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+                    }, i * 100);
+                }
+            }
+        }
+
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
             loadingScreen.classList.remove('hidden');
@@ -1377,6 +1423,8 @@
             loadChartData();
 
             screensContainer.addEventListener('scroll', syncSegmentedButtons);
+            // Первоначальная подсветка
+            updateErrorHighlights();
         }
 
         function setActivePeriod(btns, period) {
@@ -1906,6 +1954,8 @@
             let articleOk = !articleEnabled || (articleSelect.value && articleSelect.value !== '');
             const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
             saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
+            // Обновляем подсветку
+            updateErrorHighlights();
         }
 
         async function saveExpense(type, account, article, sign, amount, comment) {
@@ -1920,6 +1970,7 @@
                 await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
+                vibrateSuccess();
                 
                 amountInput.value = '';
                 commentInput.value = '';
@@ -1940,6 +1991,7 @@
                 statusDiv.textContent = '❌ Ошибка при сохранении';
                 statusDiv.className = 'status error';
                 saveBtn.disabled = false;
+                updateErrorHighlights();
             }
         }
 
@@ -1961,7 +2013,9 @@
             });
             document.addEventListener('click', closeAllDropdowns);
 
-            amountInput.addEventListener('input', checkSaveButton);
+            amountInput.addEventListener('input', () => {
+                checkSaveButton();
+            });
             commentInput.addEventListener('input', () => {});
 
             saveBtn.addEventListener('click', () => {
