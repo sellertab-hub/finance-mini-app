@@ -6,7 +6,6 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* все стили как в последней стабильной версии */
         * {
             margin: 0;
             padding: 0;
@@ -510,9 +509,11 @@
             border: 1px solid #333;
         }
         .card-title {
-            font-size: 12px;
+            font-size: 10px; /* уменьшенный шрифт названия */
             color: #aaa;
             margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         .card-amount {
             font-size: 18px;
@@ -644,7 +645,7 @@
         .connection-status.error { color: #ff4646; border-color: #ff4646; background: rgba(255, 70, 70, 0.12); }
         .connection-status.success { color: #36FF00; border-color: #36FF00; background: rgba(54, 255, 0, 0.12); }
 
-        /* ===== Кнопка настроек (без обводки) ===== */
+        /* ===== Кнопка настроек ===== */
         .connection-btn {
             position: absolute;
             top: 8px;
@@ -709,6 +710,9 @@
         <div class="screens-container" id="screensContainer">
             <!-- ADD -->
             <div class="screen" id="screen0">
+                <!-- Карточки баланса (вверху) -->
+                <div class="summary-cards" id="summaryCardsAdd"></div>
+
                 <div class="custom-select" id="typeSelectContainer">
                     <select id="typeSelect" class="native-select"></select>
                     <div class="select-button" id="typeSelectButton">
@@ -733,9 +737,6 @@
                     </div>
                     <div class="select-dropdown" id="articleDropdown"></div>
                 </div>
-
-                <!-- Три карточки баланса (перенесены с SUM) -->
-                <div class="summary-cards" id="summaryCardsAdd"></div>
 
                 <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
                 <textarea id="commentInput" placeholder="Комментарий (необязательно)"></textarea>
@@ -801,6 +802,8 @@
                     </div>
                     <div id="chartDetail" style="margin-top: 12px; color: #aaa; text-align: center;">Нажмите на сегмент для детализации</div>
                 </div>
+                <!-- Карточки на SUM (оставляем для совместимости, можно скрыть) -->
+                <div class="summary-cards" id="summaryCards"></div>
                 <div id="summaryStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
         </div>
@@ -923,7 +926,7 @@
         let activeFilterDropdown = null;
         let currentArticleSign = 'plus';
         let chartInstances = {};
-        let currentSummaryData = null;
+        let currentSummaryData = null;   // данные для графиков (chart)
         let currentEditRow = null;
         let currentEditSign = 'plus';
         let allMonths = [];
@@ -1004,7 +1007,7 @@
         const summaryStatus = document.getElementById('summaryStatus');
         const chartCanvas = document.getElementById('chartTypes');
         const chartDetailDiv = document.getElementById('chartDetail');
-        const summaryCardsDiv = document.getElementById('summaryCards');      // на SUM
+        const summaryCardsDiv = document.getElementById('summaryCards');      // на SUM (оставлен)
         const summaryCardsAddDiv = document.getElementById('summaryCardsAdd'); // на ADD
         const viewToggle = document.getElementById('viewToggle');
 
@@ -1136,7 +1139,7 @@
                 console.log('All accounts:', allAccounts);
                 console.log('All articles:', allArticles);
                 
-                // Построим signMap на основе всех строк (для определения знака по выбранному ключу)
+                // Построим signMap
                 signMap.clear();
                 for (let type in categoriesData) {
                     for (let account in categoriesData[type]) {
@@ -1152,14 +1155,11 @@
                     }
                 }
                 
-                // Заполняем выпадающие списки
                 populateTypeDropdown();
                 
                 if (linked) {
-                    // При связанных списках счёт и статья изначально пусты и заблокированы
                     resetAccountAndArticle();
                 } else {
-                    // При независимых списках заполняем все сразу
                     populateAccountDropdown(allAccounts);
                     populateArticleDropdown(allArticles);
                 }
@@ -1277,7 +1277,6 @@
             populateArticleDropdown(articles);
         }
 
-        // Блокировка и очистка счетов/статей
         function resetAccountAndArticle() {
             accountSelect.value = '';
             accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
@@ -1350,7 +1349,7 @@
             });
         }
 
-        // ===== ФИЛЬТРЫ (без изменений) =====
+        // ===== ФИЛЬТРЫ =====
         function attachPeriodListeners() {
             historyPeriodBtns.forEach(btn => {
                 if (btn.id && btn.id.includes('MoreBtn')) return;
@@ -1376,8 +1375,6 @@
                     resetMonthYear('summary');
                     loadSummary();
                     loadChartData();
-                    updateSummaryCards(); // обновляем карточки на SUM
-                    updateSummaryCardsAdd(); // обновляем карточки на ADD
                 });
             });
 
@@ -1405,8 +1402,6 @@
                     currentFilterSummary = { period: 'all' };
                     loadSummary();
                     loadChartData();
-                    updateSummaryCards();
-                    updateSummaryCardsAdd();
                 } else {
                     summaryMoreFilters.classList.add('show');
                     summaryMoreBtn.classList.add('active');
@@ -1414,8 +1409,6 @@
                     currentFilterSummary = { period: 'all' };
                     loadSummary();
                     loadChartData();
-                    updateSummaryCards();
-                    updateSummaryCardsAdd();
                 }
             });
         }
@@ -1516,8 +1509,6 @@
             }
             loadSummary();
             loadChartData();
-            updateSummaryCards();
-            updateSummaryCardsAdd();
         }
 
         function getMonthValueFromText(text) {
@@ -1584,8 +1575,7 @@
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 renderSummary(data);
-                updateSummaryCards();
-                updateSummaryCardsAdd();
+                updateCardsFromSummary(data); // обновляем карточки на основе сводки
             } catch (e) {
                 summaryStatus.textContent = 'Ошибка загрузки итогов';
             }
@@ -1711,50 +1701,67 @@
             });
         }
 
-        function updateSummaryCards() {
-            if (!currentSummaryData || summaryCategories.length === 0) {
+        // Новая функция обновления карточек из summary-данных
+        function updateCardsFromSummary(summary) {
+            if (!summaryCategories.length) {
+                if (summaryCardsAddDiv) summaryCardsAddDiv.innerHTML = '';
                 if (summaryCardsDiv) summaryCardsDiv.innerHTML = '';
                 return;
             }
-            let html = '';
             const colors = ['#36FF00', '#FFDD21', '#4069FF'];
+            let htmlAdd = '';
+            let htmlSum = '';
             summaryCategories.forEach((cat, index) => {
+                // Ищем сумму по категории в трёх уровнях summary
                 let total = 0;
-                if (currentSummaryData.types && currentSummaryData.types[cat]) total = currentSummaryData.types[cat];
-                else if (currentSummaryData.accounts && currentSummaryData.accounts[cat]) total = currentSummaryData.accounts[cat];
-                else if (currentSummaryData.articles && currentSummaryData.articles[cat]) total = currentSummaryData.articles[cat];
+                // Ищем в типах
+                for (let type in summary) {
+                    if (type === cat) {
+                        for (let account in summary[type]) {
+                            for (let article in summary[type][account]) {
+                                total += summary[type][account][article];
+                            }
+                        }
+                        break;
+                    }
+                }
+                // Если не нашли в типах, ищем в счетах
+                if (total === 0) {
+                    for (let type in summary) {
+                        for (let account in summary[type]) {
+                            if (account === cat) {
+                                for (let article in summary[type][account]) {
+                                    total += summary[type][account][article];
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Если не нашли, ищем в статьях
+                if (total === 0) {
+                    for (let type in summary) {
+                        for (let account in summary[type]) {
+                            for (let article in summary[type][account]) {
+                                if (article === cat) {
+                                    total += summary[type][account][article];
+                                }
+                            }
+                        }
+                    }
+                }
                 const color = colors[index % colors.length];
-                html += `
+                const cardHtml = `
                     <div class="summary-card" style="border-color: ${color}">
                         <div class="card-title" style="color: ${color}">${cat}</div>
                         <div class="card-amount" style="color: ${color}">${total.toFixed(2)}</div>
                     </div>
                 `;
+                htmlAdd += cardHtml;
+                htmlSum += cardHtml;
             });
-            summaryCardsDiv.innerHTML = html;
-        }
-
-        function updateSummaryCardsAdd() {
-            if (!currentSummaryData || summaryCategories.length === 0) {
-                if (summaryCardsAddDiv) summaryCardsAddDiv.innerHTML = '';
-                return;
-            }
-            let html = '';
-            const colors = ['#36FF00', '#FFDD21', '#4069FF'];
-            summaryCategories.forEach((cat, index) => {
-                let total = 0;
-                if (currentSummaryData.types && currentSummaryData.types[cat]) total = currentSummaryData.types[cat];
-                else if (currentSummaryData.accounts && currentSummaryData.accounts[cat]) total = currentSummaryData.accounts[cat];
-                else if (currentSummaryData.articles && currentSummaryData.articles[cat]) total = currentSummaryData.articles[cat];
-                const color = colors[index % colors.length];
-                html += `
-                    <div class="summary-card" style="border-color: ${color}">
-                        <div class="card-title" style="color: ${color}">${cat}</div>
-                        <div class="card-amount" style="color: ${color}">${total.toFixed(2)}</div>
-                    </div>
-                `;
-            });
-            summaryCardsAddDiv.innerHTML = html;
+            if (summaryCardsAddDiv) summaryCardsAddDiv.innerHTML = htmlAdd;
+            if (summaryCardsDiv) summaryCardsDiv.innerHTML = htmlSum;
         }
 
         function renderCharts(data) {
@@ -1865,6 +1872,7 @@
                 currentArticleSign = 'plus';
                 checkSaveButton();
                 
+                // Перезагружаем данные
                 loadHistory();
                 loadSummary();
                 loadChartData();
