@@ -6,6 +6,7 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* все стили как в последней стабильной версии */
         * {
             margin: 0;
             padding: 0;
@@ -732,6 +733,10 @@
                     </div>
                     <div class="select-dropdown" id="articleDropdown"></div>
                 </div>
+
+                <!-- Три карточки баланса (перенесены с SUM) -->
+                <div class="summary-cards" id="summaryCardsAdd"></div>
+
                 <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
                 <textarea id="commentInput" placeholder="Комментарий (необязательно)"></textarea>
                 <button id="saveBtn" disabled>Сохранить</button>
@@ -796,7 +801,6 @@
                     </div>
                     <div id="chartDetail" style="margin-top: 12px; color: #aaa; text-align: center;">Нажмите на сегмент для детализации</div>
                 </div>
-                <div class="summary-cards" id="summaryCards"></div>
                 <div id="summaryStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
         </div>
@@ -1000,7 +1004,8 @@
         const summaryStatus = document.getElementById('summaryStatus');
         const chartCanvas = document.getElementById('chartTypes');
         const chartDetailDiv = document.getElementById('chartDetail');
-        const summaryCardsDiv = document.getElementById('summaryCards');
+        const summaryCardsDiv = document.getElementById('summaryCards');      // на SUM
+        const summaryCardsAddDiv = document.getElementById('summaryCardsAdd'); // на ADD
         const viewToggle = document.getElementById('viewToggle');
 
         const modal = document.getElementById('editModal');
@@ -1133,9 +1138,6 @@
                 
                 // Построим signMap на основе всех строк (для определения знака по выбранному ключу)
                 signMap.clear();
-                // Для этого нам нужны все строки, но у нас есть только иерархия. Придётся перестраивать из иерархии? 
-                // В иерархии уже есть все полные строки. Для неполных строк знак не определён, но они не попадают в иерархию.
-                // Поэтому signMap будет только для тех комбинаций, которые есть в иерархии.
                 for (let type in categoriesData) {
                     for (let account in categoriesData[type]) {
                         categoriesData[type][account].forEach(art => {
@@ -1150,10 +1152,17 @@
                     }
                 }
                 
-                // Теперь заполняем выпадающие списки
+                // Заполняем выпадающие списки
                 populateTypeDropdown();
-                populateAccountDropdown(allAccounts);
-                populateArticleDropdown(allArticles);
+                
+                if (linked) {
+                    // При связанных списках счёт и статья изначально пусты и заблокированы
+                    resetAccountAndArticle();
+                } else {
+                    // При независимых списках заполняем все сразу
+                    populateAccountDropdown(allAccounts);
+                    populateArticleDropdown(allArticles);
+                }
                 
             } catch (e) {
                 console.error(e);
@@ -1165,10 +1174,8 @@
         function populateTypeDropdown() {
             let items;
             if (linked) {
-                // В связанном режиме используем иерархию типов (только те, у которых есть полные строки)
                 items = Object.keys(categoriesData).sort();
             } else {
-                // В независимом режиме используем все типы из столбца A
                 items = allTypes;
             }
             
@@ -1270,6 +1277,19 @@
             populateArticleDropdown(articles);
         }
 
+        // Блокировка и очистка счетов/статей
+        function resetAccountAndArticle() {
+            accountSelect.value = '';
+            accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
+            accountButton.disabled = true;
+            accountDropdown.innerHTML = '';
+            articleSelect.value = '';
+            articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
+            articleButton.disabled = true;
+            articleDropdown.innerHTML = '';
+            if (signColumn !== 1) currentArticleSign = 'plus';
+        }
+
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
             loadingScreen.classList.remove('hidden');
@@ -1356,7 +1376,8 @@
                     resetMonthYear('summary');
                     loadSummary();
                     loadChartData();
-                    updateSummaryCards();
+                    updateSummaryCards(); // обновляем карточки на SUM
+                    updateSummaryCardsAdd(); // обновляем карточки на ADD
                 });
             });
 
@@ -1385,6 +1406,7 @@
                     loadSummary();
                     loadChartData();
                     updateSummaryCards();
+                    updateSummaryCardsAdd();
                 } else {
                     summaryMoreFilters.classList.add('show');
                     summaryMoreBtn.classList.add('active');
@@ -1393,6 +1415,7 @@
                     loadSummary();
                     loadChartData();
                     updateSummaryCards();
+                    updateSummaryCardsAdd();
                 }
             });
         }
@@ -1494,6 +1517,7 @@
             loadSummary();
             loadChartData();
             updateSummaryCards();
+            updateSummaryCardsAdd();
         }
 
         function getMonthValueFromText(text) {
@@ -1561,6 +1585,7 @@
                 if (data.error) throw new Error(data.error);
                 renderSummary(data);
                 updateSummaryCards();
+                updateSummaryCardsAdd();
             } catch (e) {
                 summaryStatus.textContent = 'Ошибка загрузки итогов';
             }
@@ -1634,7 +1659,6 @@
                     let accountTotal = 0;
                     let articlesHtml = '';
                     for (let article in summary[type][account]) {
-                        // Пропускаем служебную статью с флажком
                         if (article.startsWith('🏁')) continue;
                         let amount = summary[type][account][article];
                         accountTotal += amount;
@@ -1689,7 +1713,7 @@
 
         function updateSummaryCards() {
             if (!currentSummaryData || summaryCategories.length === 0) {
-                summaryCardsDiv.innerHTML = '';
+                if (summaryCardsDiv) summaryCardsDiv.innerHTML = '';
                 return;
             }
             let html = '';
@@ -1699,7 +1723,6 @@
                 if (currentSummaryData.types && currentSummaryData.types[cat]) total = currentSummaryData.types[cat];
                 else if (currentSummaryData.accounts && currentSummaryData.accounts[cat]) total = currentSummaryData.accounts[cat];
                 else if (currentSummaryData.articles && currentSummaryData.articles[cat]) total = currentSummaryData.articles[cat];
-                
                 const color = colors[index % colors.length];
                 html += `
                     <div class="summary-card" style="border-color: ${color}">
@@ -1709,6 +1732,29 @@
                 `;
             });
             summaryCardsDiv.innerHTML = html;
+        }
+
+        function updateSummaryCardsAdd() {
+            if (!currentSummaryData || summaryCategories.length === 0) {
+                if (summaryCardsAddDiv) summaryCardsAddDiv.innerHTML = '';
+                return;
+            }
+            let html = '';
+            const colors = ['#36FF00', '#FFDD21', '#4069FF'];
+            summaryCategories.forEach((cat, index) => {
+                let total = 0;
+                if (currentSummaryData.types && currentSummaryData.types[cat]) total = currentSummaryData.types[cat];
+                else if (currentSummaryData.accounts && currentSummaryData.accounts[cat]) total = currentSummaryData.accounts[cat];
+                else if (currentSummaryData.articles && currentSummaryData.articles[cat]) total = currentSummaryData.articles[cat];
+                const color = colors[index % colors.length];
+                html += `
+                    <div class="summary-card" style="border-color: ${color}">
+                        <div class="card-title" style="color: ${color}">${cat}</div>
+                        <div class="card-amount" style="color: ${color}">${total.toFixed(2)}</div>
+                    </div>
+                `;
+            });
+            summaryCardsAddDiv.innerHTML = html;
         }
 
         function renderCharts(data) {
