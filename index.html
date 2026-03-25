@@ -6,6 +6,7 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* Все стили остаются без изменений (такие же, как в последней стабильной версии) */
         * {
             margin: 0;
             padding: 0;
@@ -326,7 +327,6 @@
             resize: vertical;
         }
 
-        /* Стиль для ошибки */
         .select-button.error, input.error {
             border-color: #ff4646 !important;
             box-shadow: 0 0 0 2px rgba(255, 70, 70, 0.3) !important;
@@ -586,7 +586,6 @@
             color: #000;
         }
 
-        /* Connection overlay */
         .connection-overlay {
             position: fixed;
             inset: 0;
@@ -928,16 +927,15 @@
         }
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-        let categoriesData = null;
-        let allTypes = [];
-        let allAccounts = [];
-        let allArticles = [];
+        let categoriesData = null;          // иерархия { type: { account: [ { name, sign } ] } }
+        let allTypes = [];                  // все типы из столбца A (для независимого режима)
+        let allAccounts = [];                // все счета из столбца B
+        let allArticles = [];                // все статьи из столбца C
         let settingsData = null;
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'all' };
         let activeDropdown = null;
         let activeFilterDropdown = null;
-        let currentArticleSign = 'plus';
         let chartInstances = {};
         let currentSummaryData = null;
         let currentEditRow = null;
@@ -951,9 +949,7 @@
         let linked = true;
         let editEnabled = true;
         let summaryCategories = [];
-        let signColumn = 3;
-
-        let signMap = new Map();
+        let signColumn = 3;   // этот параметр больше не используется для знака, но оставлен для совместимости
 
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
@@ -1124,7 +1120,7 @@
             if (settingsData.linked !== undefined) linked = settingsData.linked;
             if (settingsData.editEnabled !== undefined) editEnabled = settingsData.editEnabled;
             if (settingsData.summaryCategories) summaryCategories = settingsData.summaryCategories;
-            if (settingsData.signColumn) signColumn = settingsData.signColumn;
+            // signColumn больше не используется для знака, но оставим для возможных других целей
         }
 
         async function loadCategories() {
@@ -1137,20 +1133,10 @@
                 allAccounts = data.allAccounts || [];
                 allArticles = data.allArticles || [];
                 
-                signMap.clear();
-                for (let type in categoriesData) {
-                    for (let account in categoriesData[type]) {
-                        categoriesData[type][account].forEach(art => {
-                            let key;
-                            if (signColumn === 1) key = type;
-                            else if (signColumn === 2) key = account;
-                            else key = art.name;
-                            if (!signMap.has(key)) {
-                                signMap.set(key, art.sign);
-                            }
-                        });
-                    }
-                }
+                console.log('Categories loaded', categoriesData);
+                console.log('All types:', allTypes);
+                console.log('All accounts:', allAccounts);
+                console.log('All articles:', allArticles);
                 
                 populateTypeDropdown();
                 
@@ -1167,7 +1153,7 @@
             }
         }
 
-        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ (с плейсхолдерами) =====
+        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ =====
         function populateTypeDropdown() {
             let items;
             if (linked) {
@@ -1195,9 +1181,6 @@
             populateDropdown(typeDropdown, items, null, (value) => {
                 typeSelect.value = value;
                 typeSelectedText.textContent = value;
-                if (signColumn === 1) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
                 if (linked) {
                     updateAccountOptionsLinked();
                 }
@@ -1232,9 +1215,6 @@
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
-                if (signColumn === 2) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
                 if (linked) {
                     updateArticleOptionsLinked();
                 }
@@ -1269,9 +1249,6 @@
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value;
                 articleSelectedText.textContent = value;
-                if (signColumn === 3) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
                 checkSaveButton();
             });
         }
@@ -1297,9 +1274,6 @@
             populateDropdown(accountDropdown, accounts, null, (value) => {
                 accountSelect.value = value;
                 accountSelectedText.textContent = value;
-                if (signColumn === 2) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
                 updateArticleOptionsLinked();
                 checkSaveButton();
             });
@@ -1327,9 +1301,6 @@
             populateDropdown(articleDropdown, articles, null, (value) => {
                 articleSelect.value = value;
                 articleSelectedText.textContent = value;
-                if (signColumn === 3) {
-                    currentArticleSign = signMap.get(value) || 'plus';
-                }
                 checkSaveButton();
             });
         }
@@ -1355,33 +1326,28 @@
             articleButton.disabled = true;
             articleDropdown.innerHTML = '';
             articleSelect.value = '';
-            if (signColumn !== 1) currentArticleSign = 'plus';
         }
 
         // ===== ПОДСВЕТКА ОШИБОК =====
         function updateErrorHighlights() {
-            // Тип
             if (typeEnabled) {
                 const typeOk = typeSelect.value && typeSelect.value !== '';
                 typeButton.classList.toggle('error', !typeOk);
             } else {
                 typeButton.classList.remove('error');
             }
-            // Счёт
             if (accountEnabled) {
                 const accountOk = accountSelect.value && accountSelect.value !== '';
                 accountButton.classList.toggle('error', !accountOk);
             } else {
                 accountButton.classList.remove('error');
             }
-            // Статья
             if (articleEnabled) {
                 const articleOk = articleSelect.value && articleSelect.value !== '';
                 articleButton.classList.toggle('error', !articleOk);
             } else {
                 articleButton.classList.remove('error');
             }
-            // Сумма
             const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
             amountInput.classList.toggle('error', !amountOk);
         }
@@ -1423,7 +1389,6 @@
             loadChartData();
 
             screensContainer.addEventListener('scroll', syncSegmentedButtons);
-            // Первоначальная подсветка
             updateErrorHighlights();
         }
 
@@ -1954,11 +1919,24 @@
             let articleOk = !articleEnabled || (articleSelect.value && articleSelect.value !== '');
             const amountOk = amountInput.value && parseFloat(amountInput.value) > 0;
             saveBtn.disabled = !(typeOk && accountOk && articleOk && amountOk);
-            // Обновляем подсветку
             updateErrorHighlights();
         }
 
-        async function saveExpense(type, account, article, sign, amount, comment) {
+        // Новая функция сохранения с определением знака по точной комбинации
+        async function saveExpense(type, account, article, amount, comment) {
+            // Определяем знак по выбранной комбинации
+            let sign = 'plus';
+            if (type && account && article && categoriesData[type]?.[account]) {
+                const articleObj = categoriesData[type][account].find(a => a.name === article);
+                if (articleObj) {
+                    sign = articleObj.sign;
+                } else {
+                    console.warn('Article not found in hierarchy for', type, account, article, 'using default sign plus');
+                }
+            } else {
+                console.warn('Incomplete selection or missing in categoriesData, using default sign plus');
+            }
+            
             const formData = new URLSearchParams();
             formData.append('type', typeEnabled ? type : '');
             formData.append('account', accountEnabled ? account : '');
@@ -1966,6 +1944,7 @@
             formData.append('sign', sign);
             formData.append('amount', amount);
             formData.append('comment', comment);
+            
             try {
                 await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
                 statusDiv.textContent = '✅ Запись отправлена!';
@@ -1980,7 +1959,6 @@
                 typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
                 accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
                 articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
-                currentArticleSign = 'plus';
                 checkSaveButton();
                 
                 loadHistory();
@@ -2013,23 +1991,20 @@
             });
             document.addEventListener('click', closeAllDropdowns);
 
-            amountInput.addEventListener('input', () => {
-                checkSaveButton();
-            });
+            amountInput.addEventListener('input', checkSaveButton);
             commentInput.addEventListener('input', () => {});
 
             saveBtn.addEventListener('click', () => {
                 const type = typeSelect.value;
                 const account = accountSelect.value;
                 const article = articleSelect.value;
-                const sign = currentArticleSign;
                 const amount = parseFloat(amountInput.value);
                 const comment = commentInput.value;
                 if ((typeEnabled && !type) || (accountEnabled && !account) || (articleEnabled && !article) || isNaN(amount) || amount <= 0) return;
                 saveBtn.disabled = true;
                 statusDiv.textContent = 'Отправка...';
                 statusDiv.className = 'status';
-                saveExpense(type, account, article, sign, amount, comment);
+                saveExpense(type, account, article, amount, comment);
             });
         }
 
