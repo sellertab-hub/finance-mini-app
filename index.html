@@ -6,7 +6,6 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Все стили остаются без изменений (такие же, как в последней стабильной версии) */
         * {
             margin: 0;
             padding: 0;
@@ -927,10 +926,10 @@
         }
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-        let categoriesData = null;          // иерархия { type: { account: [ { name, sign } ] } }
-        let allTypes = [];                  // все типы из столбца A (для независимого режима)
-        let allAccounts = [];                // все счета из столбца B
-        let allArticles = [];                // все статьи из столбца C
+        let categoriesData = null;          // иерархия (оставлена для совместимости)
+        let allTypes = [];
+        let allAccounts = [];
+        let allArticles = [];
         let settingsData = null;
         let currentFilterHistory = { period: 'today' };
         let currentFilterSummary = { period: 'all' };
@@ -949,7 +948,9 @@
         let linked = true;
         let editEnabled = true;
         let summaryCategories = [];
-        let signColumn = 3;   // этот параметр больше не используется для знака, но оставлен для совместимости
+
+        // Новая карта знаков, построенная из всех строк листа Categories (полученных из allRows)
+        let signLookup = new Map();
 
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
@@ -1120,7 +1121,6 @@
             if (settingsData.linked !== undefined) linked = settingsData.linked;
             if (settingsData.editEnabled !== undefined) editEnabled = settingsData.editEnabled;
             if (settingsData.summaryCategories) summaryCategories = settingsData.summaryCategories;
-            // signColumn больше не используется для знака, но оставим для возможных других целей
         }
 
         async function loadCategories() {
@@ -1132,11 +1132,30 @@
                 allTypes = data.allTypes || [];
                 allAccounts = data.allAccounts || [];
                 allArticles = data.allArticles || [];
+                const allRows = data.allRows || []; // массив [type, account, article, sign]
                 
                 console.log('Categories loaded', categoriesData);
-                console.log('All types:', allTypes);
-                console.log('All accounts:', allAccounts);
-                console.log('All articles:', allArticles);
+                console.log('All rows:', allRows);
+                
+                // Строим signLookup из всех строк
+                signLookup.clear();
+                allRows.forEach(row => {
+                    const type = row[0]?.trim() || '';
+                    const account = row[1]?.trim() || '';
+                    const article = row[2]?.trim() || '';
+                    const sign = row[3]?.trim().toLowerCase() || '';
+                    if (sign === 'plus' || sign === 'minus') {
+                        // Ключ формируется из включённых полей
+                        let key = '';
+                        if (typeEnabled) key += type;
+                        if (accountEnabled) key += '|' + account;
+                        if (articleEnabled) key += '|' + article;
+                        if (key) {
+                            signLookup.set(key, sign);
+                        }
+                    }
+                });
+                console.log('Sign lookup built:', signLookup);
                 
                 populateTypeDropdown();
                 
@@ -1922,19 +1941,16 @@
             updateErrorHighlights();
         }
 
-        // Новая функция сохранения с определением знака по точной комбинации
+        // Новая функция сохранения с определением знака из signLookup
         async function saveExpense(type, account, article, amount, comment) {
-            // Определяем знак по выбранной комбинации
-            let sign = 'plus';
-            if (type && account && article && categoriesData[type]?.[account]) {
-                const articleObj = categoriesData[type][account].find(a => a.name === article);
-                if (articleObj) {
-                    sign = articleObj.sign;
-                } else {
-                    console.warn('Article not found in hierarchy for', type, account, article, 'using default sign plus');
-                }
-            } else {
-                console.warn('Incomplete selection or missing in categoriesData, using default sign plus');
+            // Формируем ключ из выбранных полей (только включённые)
+            let key = '';
+            if (typeEnabled) key += type;
+            if (accountEnabled) key += '|' + account;
+            if (articleEnabled) key += '|' + article;
+            let sign = signLookup.get(key) || 'plus';
+            if (!signLookup.has(key)) {
+                console.warn(`Sign not found for key "${key}", using default 'plus'`);
             }
             
             const formData = new URLSearchParams();
