@@ -6,7 +6,7 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* все стили без изменений (как в предыдущей версии) */
+        /* Все стили без изменений (как в предыдущей стабильной версии) */
         * {
             margin: 0;
             padding: 0;
@@ -927,7 +927,7 @@
         }
 
         // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-        let categoriesData = null;          // иерархия (оставлена для совместимости)
+        let categoriesData = null;
         let allTypes = [];
         let allAccounts = [];
         let allArticles = [];
@@ -949,10 +949,9 @@
         let linked = true;
         let editEnabled = true;
         let summaryCategories = [];
-        let signColumn = 3; // по умолчанию 3 (статья), но будет заменено из настроек
+        let signColumn = 3; // по умолчанию 3
 
-        // Простая карта знаков: ключ = значение из столбца (в зависимости от signColumn), значение = знак
-        let signByValue = new Map();
+        let signMap = new Map(); // ключ – значение из столбца, указанного в signColumn, значение – знак
 
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
@@ -1137,22 +1136,19 @@
                 allArticles = data.allArticles || [];
                 const allRows = data.allRows || [];
                 
-                console.log('Categories loaded');
                 console.log('All rows:', allRows);
                 
-                // Строим signByValue: для signColumn определяем, из какого столбца берём значение
-                signByValue.clear();
+                // Строим signMap по простой логике: ключ = значение в столбце signColumn
+                signMap.clear();
+                const colIndex = signColumn - 1; // 0-индекс столбца
                 allRows.forEach(row => {
-                    const colValue = row[signColumn - 1]?.trim() || '';
-                    const sign = row[3]?.trim().toLowerCase() || '';
-                    if (sign === 'plus' || sign === 'minus') {
-                        if (colValue) {
-                            // Если для одного ключа есть несколько знаков, возьмём последний
-                            signByValue.set(colValue, sign);
-                        }
+                    const key = row[colIndex]?.trim();
+                    const sign = row[3]?.trim().toLowerCase();
+                    if (key && (sign === 'plus' || sign === 'minus')) {
+                        signMap.set(key, sign);
                     }
                 });
-                console.log('Sign by value:', signByValue);
+                console.log('Sign map built:', signMap);
                 
                 populateTypeDropdown();
                 
@@ -1803,7 +1799,6 @@
             let htmlSum = '';
             summaryCategories.forEach((cat, index) => {
                 let total = 0;
-                // ищем в типах
                 for (let type in summary) {
                     if (type === cat) {
                         for (let account in summary[type]) {
@@ -1814,7 +1809,6 @@
                         break;
                     }
                 }
-                // если не нашли в типах, ищем в счетах
                 if (total === 0) {
                     for (let type in summary) {
                         for (let account in summary[type]) {
@@ -1827,7 +1821,6 @@
                         }
                     }
                 }
-                // если не нашли, ищем в статьях
                 if (total === 0) {
                     for (let type in summary) {
                         for (let account in summary[type]) {
@@ -1938,17 +1931,20 @@
             updateErrorHighlights();
         }
 
-        // Новая функция сохранения с определением знака по signColumn
+        // Новая функция сохранения – знак берётся из signMap по значению выбранного столбца
         async function saveExpense(type, account, article, amount, comment) {
             // Определяем, какое значение использовать для поиска знака
-            let valueForSign = '';
-            if (signColumn === 1) valueForSign = type;
-            else if (signColumn === 2) valueForSign = account;
-            else valueForSign = article;
-            
-            let sign = signByValue.get(valueForSign) || 'plus';
-            if (!signByValue.has(valueForSign)) {
-                console.warn(`Знак не найден для "${valueForSign}" (signColumn=${signColumn}), используем 'plus'`);
+            let signKey = '';
+            if (signColumn === 1) {
+                signKey = typeSelect.value;
+            } else if (signColumn === 2) {
+                signKey = accountSelect.value;
+            } else {
+                signKey = articleSelect.value;
+            }
+            const sign = signMap.get(signKey) || 'plus';
+            if (!signMap.has(signKey)) {
+                console.warn(`Sign not found for key "${signKey}" (signColumn=${signColumn}), using default 'plus'`);
             }
             
             const formData = new URLSearchParams();
