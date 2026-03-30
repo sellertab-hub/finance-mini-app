@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -37,10 +38,12 @@
             z-index: 1000;
             transition: opacity 0.3s;
         }
+
         .loading-screen.hidden {
             opacity: 0;
             pointer-events: none;
         }
+
         .loading-logo {
             max-width: 120px;
             height: auto;
@@ -65,6 +68,7 @@
             justify-content: center;
             padding: 8px 0 2px;
         }
+
         .logo-image {
             max-height: 21px;
             width: auto;
@@ -76,6 +80,7 @@
             gap: 6px;
             margin: 4px 16px;
         }
+
         .segmented-btn {
             flex: 1;
             padding: 8px 0;
@@ -90,6 +95,7 @@
             cursor: pointer;
             letter-spacing: 0.5px;
         }
+
         .segmented-btn.active {
             border-color: #36FF00;
             color: #36FF00;
@@ -104,9 +110,11 @@
             scroll-behavior: smooth;
             scrollbar-width: none;
         }
+
         .screens-container::-webkit-scrollbar {
             display: none;
         }
+
         .screen {
             flex: 0 0 100%;
             scroll-snap-align: start;
@@ -123,6 +131,7 @@
             flex-wrap: wrap;
             align-items: center;
         }
+
         .period-btn {
             flex: 1;
             padding: 8px 0;
@@ -136,6 +145,7 @@
             transition: 0.2s;
             min-width: 60px;
         }
+
         .period-btn.active {
             border-color: #36FF00;
             color: #36FF00;
@@ -154,6 +164,7 @@
             font-size: 20px;
             transition: 0.2s;
         }
+
         .view-toggle.active {
             border-color: #36FF00;
             color: #36FF00;
@@ -166,13 +177,16 @@
             margin-top: 4px;
             margin-bottom: 8px;
         }
+
         .more-filters.show {
             display: flex;
         }
+
         .filter-select {
             flex: 1;
             position: relative;
         }
+
         .filter-button {
             width: 100%;
             padding: 10px 12px;
@@ -188,10 +202,12 @@
             align-items: center;
             transition: 0.2s;
         }
+
         .filter-button.active {
             border-color: #36FF00;
             color: #36FF00;
         }
+
         .filter-button .arrow {
             width: 14px;
             height: 14px;
@@ -199,9 +215,11 @@
             background-repeat: no-repeat;
             background-position: center;
         }
+
         .filter-button.open .arrow {
             transform: rotate(180deg);
         }
+
         .filter-dropdown {
             position: absolute;
             top: calc(100% + 2px);
@@ -215,9 +233,11 @@
             z-index: 20;
             display: none;
         }
+
         .filter-dropdown.show {
             display: block;
         }
+
         .filter-option {
             padding: 10px;
             cursor: pointer;
@@ -226,12 +246,15 @@
             border-bottom: 1px solid #2a2a2a;
             font-size: 14px;
         }
+
         .filter-option:last-child {
             border-bottom: none;
         }
+
         .filter-option:hover {
             background: #333;
         }
+
         .filter-option.selected {
             background: #36FF00;
             color: #000;
@@ -242,6 +265,7 @@
             width: 100%;
             margin-bottom: 10px;
         }
+
         .select-button {
             width: 100%;
             padding: 14px 12px;
@@ -257,6 +281,7 @@
             align-items: center;
             transition: border 0.2s, box-shadow 0.2s;
         }
+
         .select-button .arrow {
             width: 16px;
             height: 16px;
@@ -264,9 +289,11 @@
             background-repeat: no-repeat;
             background-position: center;
         }
+
         .select-button.open .arrow {
             transform: rotate(180deg);
         }
+
         .select-dropdown {
             position: absolute;
             top: calc(100% + 4px);
@@ -280,9 +307,11 @@
             z-index: 10;
             display: none;
         }
+
         .select-dropdown.show {
             display: block;
         }
+
         .select-option {
             padding: 12px;
             cursor: pointer;
@@ -290,22 +319,27 @@
             transition: background 0.1s;
             border-bottom: 1px solid #2a2a2a;
         }
+
         .select-option:last-child {
             border-bottom: none;
         }
+
         .select-option:hover {
             background: #333;
         }
+
         .select-option.selected {
             background: #36FF00;
             color: #000;
             font-weight: 500;
         }
+
         .native-select {
             display: none;
         }
 
-        input[type="number"], textarea {
+        input[type="number"],
+        textarea {
             width: 100%;
             padding: 14px 12px;
             background: #1a1a1a;
@@ -318,16 +352,20 @@
             font-family: inherit;
             margin-bottom: 10px;
         }
-        input[type="number"]:focus, textarea:focus {
+
+        input[type="number"]:focus,
+        textarea:focus {
             border-color: #FFDD21;
             box-shadow: 0 0 0 3px rgba(255, 221, 33, 0.2);
         }
+
         textarea {
             min-height: 70px;
             resize: vertical;
         }
 
-        .select-button.error, input.error {
+        .select-button.error,
+        input.error {
             border-color: #ff4646 !important;
             box-shadow: 0 0 0 2px rgba(255, 70, 70, 0.3) !important;
         }
@@ -345,6 +383,7 @@
             transition: 0.2s;
             margin-top: 6px;
         }
+
         button:disabled {
             background: #2a2a2a;
             color: #666;
@@ -360,12 +399,14 @@
             background: #1a1a1a;
             border: 1px solid #333;
         }
+
         .status.success {
             display: block;
             background: rgba(54, 255, 0, 0.15);
             color: #36FF00;
             border-color: #36FF00;
         }
+
         .status.error {
             display: block;
             background: rgba(255, 70, 70, 0.15);
@@ -381,32 +422,39 @@
             border: 1px solid #333;
             user-select: none;
         }
+
         .transaction-main {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 4px;
         }
+
         .transaction-left {
             display: flex;
             flex-wrap: wrap;
             gap: 6px 8px;
             font-size: 14px;
         }
+
         .transaction-type {
             color: #36FF00;
             font-weight: 500;
         }
+
         .transaction-account {
             color: #FFDD21;
         }
+
         .transaction-article {
             color: #4069FF;
         }
+
         .transaction-amount {
             font-weight: 600;
             font-size: 15px;
         }
+
         .edit-icon {
             margin-left: 6px;
             font-size: 16px;
@@ -414,9 +462,11 @@
             opacity: 0.8;
             transition: opacity 0.2s;
         }
+
         .edit-icon:hover {
             opacity: 1;
         }
+
         .transaction-comment {
             color: #aaa;
             font-size: 12px;
@@ -425,6 +475,7 @@
             border-top: 1px dashed #333;
             word-break: break-word;
         }
+
         .transaction-date {
             color: #888;
             font-size: 11px;
@@ -435,6 +486,7 @@
         .summary-block {
             margin-bottom: 8px;
         }
+
         .summary-type {
             background: #222;
             padding: 12px 16px;
@@ -448,22 +500,28 @@
             cursor: pointer;
             transition: background 0.2s;
         }
+
         .summary-type:hover {
             background: #2a2a2a;
         }
+
         .summary-type-total {
             color: #fff;
         }
+
         .summary-account-container {
             display: none;
             margin-left: 16px;
         }
+
         .summary-account-container.expanded {
             display: block;
         }
+
         .summary-account {
             margin-bottom: 2px;
         }
+
         .summary-account-header {
             background: #1a1a1a;
             padding: 8px 14px;
@@ -475,16 +533,20 @@
             justify-content: space-between;
             cursor: pointer;
         }
+
         .summary-account-header:hover {
             background: #2a2a2a;
         }
+
         .summary-article-container {
             display: none;
             margin-left: 24px;
         }
+
         .summary-article-container.expanded {
             display: block;
         }
+
         .summary-article {
             padding: 6px 12px;
             display: flex;
@@ -493,9 +555,11 @@
             border-bottom: 1px solid #2a2a2a;
             font-size: 13px;
         }
+
         .summary-article:last-child {
             border-bottom: none;
         }
+
         .summary-article-amount {
             color: #36FF00;
             font-weight: 500;
@@ -507,6 +571,7 @@
             margin-top: 16px;
             margin-bottom: 8px;
         }
+
         .summary-card {
             flex: 1;
             background: #1a1a1a;
@@ -515,6 +580,7 @@
             text-align: center;
             border: 1px solid #333;
         }
+
         .card-title {
             font-size: 10px;
             color: #aaa;
@@ -522,6 +588,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
         .card-amount {
             font-size: 18px;
             font-weight: 600;
@@ -534,14 +601,16 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.8);
             align-items: center;
             justify-content: center;
             z-index: 100;
         }
+
         .modal.show {
             display: flex;
         }
+
         .modal-content {
             background: #0c0c0c;
             border: 2px solid #36FF00;
@@ -552,6 +621,7 @@
             max-height: 80vh;
             overflow-y: auto;
         }
+
         .modal-title {
             font-size: 18px;
             font-weight: 600;
@@ -559,11 +629,13 @@
             margin-bottom: 12px;
             text-align: center;
         }
+
         .modal-buttons {
             display: flex;
             gap: 8px;
             margin-top: 16px;
         }
+
         .modal-btn {
             flex: 1;
             padding: 12px;
@@ -573,14 +645,17 @@
             font-weight: 600;
             cursor: pointer;
         }
+
         .modal-btn.delete {
             background: #ff4646;
             color: #fff;
         }
+
         .modal-btn.cancel {
             background: #444;
             color: #fff;
         }
+
         .modal-btn.edit {
             background: #36FF00;
             color: #000;
@@ -596,9 +671,11 @@
             padding: 16px;
             z-index: 2000;
         }
+
         .connection-overlay.show {
             display: flex;
         }
+
         .connection-card {
             width: 100%;
             max-width: 420px;
@@ -607,36 +684,43 @@
             border-radius: 24px;
             padding: 16px;
         }
+
         .connection-title {
             font-size: 18px;
             font-weight: 700;
             margin-bottom: 8px;
         }
+
         .connection-hint {
             color: #aaa;
             font-size: 13px;
             line-height: 1.4;
             margin-bottom: 12px;
         }
+
         .connection-actions {
             display: flex;
             gap: 8px;
             margin-top: 8px;
         }
+
         .connection-actions button {
             margin-top: 0;
             padding: 12px;
             border-radius: 16px;
             font-size: 14px;
         }
+
         .connection-actions .secondary {
             background: #444;
             color: #fff;
         }
+
         .connection-actions .danger {
             background: #ff4646;
             color: #fff;
         }
+
         .connection-status {
             margin-top: 10px;
             padding: 10px;
@@ -647,9 +731,22 @@
             display: none;
             font-size: 13px;
         }
-        .connection-status.show { display: block; }
-        .connection-status.error { color: #ff4646; border-color: #ff4646; background: rgba(255, 70, 70, 0.12); }
-        .connection-status.success { color: #36FF00; border-color: #36FF00; background: rgba(54, 255, 0, 0.12); }
+
+        .connection-status.show {
+            display: block;
+        }
+
+        .connection-status.error {
+            color: #ff4646;
+            border-color: #ff4646;
+            background: rgba(255, 70, 70, 0.12);
+        }
+
+        .connection-status.success {
+            color: #36FF00;
+            border-color: #36FF00;
+            background: rgba(54, 255, 0, 0.12);
+        }
 
         .connection-btn {
             position: absolute;
@@ -669,21 +766,23 @@
             font-size: 18px;
             z-index: 10;
         }
+
         .connection-btn:hover {
             color: #fff;
         }
     </style>
 </head>
+
 <body>
     <div class="loading-screen" id="loadingScreen">
         <img src="logo.png" alt="Finance Logo" class="loading-logo">
     </div>
-
     <div class="connection-overlay" id="connectionOverlay" aria-hidden="true">
         <div class="connection-card">
             <div class="connection-title">Подключение</div>
             <div class="connection-hint">
-                Вставьте ссылку на ваш Google Apps Script Web App (формат <code>https://script.google.com/macros/s/.../exec</code>).
+                Вставьте ссылку на ваш Google Apps Script Web App (формат
+                <code>https://script.google.com/macros/s/.../exec</code>).
                 Ссылка сохранится локально в браузере (localStorage).
             </div>
             <input type="text" id="appUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
@@ -698,24 +797,20 @@
             <div class="connection-status" id="connectionStatus"></div>
         </div>
     </div>
-
     <div class="app-container" id="appContainer" style="display: none;">
         <div class="logo-area">
             <img src="logo.png" alt="Finance Logo" class="logo-image">
         </div>
         <button class="connection-btn" id="connectionBtn" title="Настройки подключения" type="button">⚙️</button>
-
         <div class="segmented-control">
             <button class="segmented-btn active" data-screen="0">ADD</button>
             <button class="segmented-btn" data-screen="1">FLOW</button>
             <button class="segmented-btn" data-screen="2">SUM</button>
         </div>
-
         <div class="screens-container" id="screensContainer">
             <!-- ADD -->
             <div class="screen" id="screen0">
                 <div class="summary-cards" id="summaryCardsAdd"></div>
-
                 <div class="custom-select" id="typeSelectContainer">
                     <select id="typeSelect" class="native-select"></select>
                     <div class="select-button" id="typeSelectButton">
@@ -740,13 +835,11 @@
                     </div>
                     <div class="select-dropdown" id="articleDropdown"></div>
                 </div>
-
                 <input type="number" id="amountInput" placeholder="Сумма" min="0" step="0.01" />
                 <textarea id="commentInput" placeholder="Комментарий (необязательно)"></textarea>
                 <button id="saveBtn" disabled>Сохранить</button>
                 <div id="statusMessage" class="status"></div>
             </div>
-
             <!-- FLOW -->
             <div class="screen" id="screen1">
                 <div class="period-selector" id="historyPeriod">
@@ -773,7 +866,6 @@
                 <div id="historyList"></div>
                 <div id="historyStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
-
             <!-- SUM -->
             <div class="screen" id="screen2">
                 <div class="period-selector" id="summaryPeriod">
@@ -803,14 +895,14 @@
                     <div class="chart-container">
                         <canvas id="chartTypes"></canvas>
                     </div>
-                    <div id="chartDetail" style="margin-top: 12px; color: #aaa; text-align: center;">Нажмите на сегмент для детализации</div>
+                    <div id="chartDetail" style="margin-top: 12px; color: #aaa; text-align: center;">Нажмите на сегмент
+                        для детализации</div>
                 </div>
                 <div class="summary-cards" id="summaryCards"></div>
                 <div id="summaryStatus" style="text-align: center; padding: 16px; color: #aaa;"></div>
             </div>
         </div>
     </div>
-
     <div class="modal" id="editModal">
         <div class="modal-content">
             <div class="modal-title" id="modalTitle">Редактирование</div>
@@ -830,7 +922,6 @@
             </div>
         </div>
     </div>
-
     <script>
         // ===== НАСТРОЙКИ ПОДКЛЮЧЕНИЯ =====
         const APP_URL_STORAGE_KEY = 'sellertab_fin_appUrl';
@@ -1029,14 +1120,14 @@
         // ===== ВСПОМОГАТЕЛЬНЫЕ =====
         function getCurrentMonth() {
             const d = new Date();
-            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         }
         function getCurrentYear() {
             return new Date().getFullYear().toString();
         }
         function formatMonth(monthStr) {
             const [year, month] = monthStr.split('-');
-            const date = new Date(parseInt(year), parseInt(month)-1, 1);
+            const date = new Date(parseInt(year), parseInt(month) - 1, 1);
             return date.toLocaleString('en', { month: 'short' }).toUpperCase();
         }
 
@@ -1044,7 +1135,7 @@
             const date = new Date(dateValue);
             const now = new Date();
             const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            
+
             if (filter.period === 'today') {
                 const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 return date >= startOfDay;
@@ -1052,7 +1143,7 @@
                 return date >= weekAgo;
             } else if (filter.period === 'month' && filter.month) {
                 const [year, month] = filter.month.split('-');
-                const monthStart = new Date(parseInt(year), parseInt(month)-1, 1);
+                const monthStart = new Date(parseInt(year), parseInt(month) - 1, 1);
                 const monthEnd = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
                 return date >= monthStart && date <= monthEnd;
             } else if (filter.period === 'year' && filter.year) {
@@ -1103,7 +1194,7 @@
 
         function applySettings() {
             if (!settingsData) return;
-            
+
             if (settingsData.type) {
                 typeEnabled = settingsData.type.enabled;
                 typeContainer.style.display = typeEnabled ? 'block' : 'none';
@@ -1118,7 +1209,7 @@
                 articleContainer.style.display = articleEnabled ? 'block' : 'none';
                 if (settingsData.article.firstText) articleSelectedText.textContent = settingsData.article.firstText;
             }
-            
+
             if (settingsData.linked !== undefined) linked = settingsData.linked;
             if (settingsData.editEnabled !== undefined) editEnabled = settingsData.editEnabled;
             if (settingsData.summaryCategories) summaryCategories = settingsData.summaryCategories;
@@ -1135,9 +1226,9 @@
                 allAccounts = data.allAccounts || [];
                 allArticles = data.allArticles || [];
                 const allRows = data.allRows || [];
-                
+
                 console.log('All rows:', allRows);
-                
+
                 // Строим signMap по простой логике: ключ = значение в столбце signColumn
                 signMap.clear();
                 const colIndex = signColumn - 1; // 0-индекс столбца
@@ -1149,16 +1240,16 @@
                     }
                 });
                 console.log('Sign map built:', signMap);
-                
+
                 populateTypeDropdown();
-                
+
                 if (linked) {
                     resetAccountAndArticle();
                 } else {
                     populateAccountDropdown(allAccounts);
                     populateArticleDropdown(allArticles);
                 }
-                
+
             } catch (e) {
                 console.error(e);
                 typeSelectedText.textContent = 'Ошибка загрузки';
@@ -1173,14 +1264,14 @@
             } else {
                 items = allTypes;
             }
-            
+
             typeSelect.innerHTML = '';
             typeDropdown.innerHTML = '';
             const placeholder = document.createElement('option');
             placeholder.value = '';
             placeholder.textContent = settingsData?.type?.secondText || 'Выберите тип';
             typeSelect.appendChild(placeholder);
-            
+
             items.forEach(t => {
                 const option = document.createElement('option');
                 option.value = t;
@@ -1206,7 +1297,7 @@
             placeholder.value = '';
             placeholder.textContent = settingsData?.account?.secondText || 'Выберите счёт';
             accountSelect.appendChild(placeholder);
-            
+
             if (accounts.length === 0) {
                 const disabled = document.createElement('option');
                 disabled.value = '';
@@ -1240,7 +1331,7 @@
             placeholder.value = '';
             placeholder.textContent = settingsData?.article?.secondText || 'Выберите статью';
             articleSelect.appendChild(placeholder);
-            
+
             if (articles.length === 0) {
                 const disabled = document.createElement('option');
                 disabled.value = '';
@@ -1378,12 +1469,12 @@
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
             loadingScreen.classList.remove('hidden');
-            
+
             await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
-            
+
             loadingScreen.classList.add('hidden');
             appContainer.style.display = 'flex';
-            
+
             attachNavigationListeners();
             attachPeriodListeners();
             attachFilterListeners();
@@ -1395,7 +1486,7 @@
             setActivePeriod(summaryPeriodBtns, null);
             summaryMoreBtn.classList.add('active');
             currentFilterSummary = { period: 'all' };
-            
+
             loadHistory();
             loadSummary();
             loadChartData();
@@ -1689,28 +1780,28 @@
                 historyStatus.textContent = 'Нет записей';
                 return;
             }
-            records.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+            records.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             records.forEach(rec => {
-                const date = new Date(rec.timestamp).toLocaleString('ru', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+                const date = new Date(rec.timestamp).toLocaleString('ru', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                 const amountColor = rec.amount < 0 ? '#ff4646' : '#36FF00';
                 const item = document.createElement('div');
                 item.className = 'transaction-item';
                 item.dataset.row = rec.row;
                 item.innerHTML = `
-                    <div class="transaction-main">
-                        <div class="transaction-left">
-                            <span class="transaction-type">${rec.type}</span>
-                            <span class="transaction-account">${rec.account}</span>
-                            <span class="transaction-article">${rec.article}</span>
+                        <div class="transaction-main">
+                            <div class="transaction-left">
+                                <span class="transaction-type">${rec.type}</span>
+                                <span class="transaction-account">${rec.account}</span>
+                                <span class="transaction-article">${rec.article}</span>
+                            </div>
+                            <div style="display: flex; align-items: center;">
+                                <span class="transaction-amount" style="color: ${amountColor}">${rec.amount.toFixed(2)}</span>
+                                ${editEnabled ? '<span class="edit-icon" data-row="' + rec.row + '">✏️</span>' : ''}
+                            </div>
                         </div>
-                        <div style="display: flex; align-items: center;">
-                            <span class="transaction-amount" style="color: ${amountColor}">${rec.amount.toFixed(2)}</span>
-                            ${editEnabled ? '<span class="edit-icon" data-row="'+rec.row+'">✏️</span>' : ''}
-                        </div>
-                    </div>
-                    ${rec.comment ? `<div class="transaction-comment">💬 ${rec.comment}</div>` : ''}
-                    <div class="transaction-date">${date}</div>
-                `;
+                        ${rec.comment ? `<div class="transaction-comment">💬 ${rec.comment}</div>` : ''}
+                        <div class="transaction-date">${date}</div>
+                    `;
                 if (editEnabled) {
                     const editIcon = item.querySelector('.edit-icon');
                     editIcon.addEventListener('click', (e) => {
@@ -1745,36 +1836,36 @@
                     typeTotal += accountTotal;
                     const accountTotalColor = accountTotal < 0 ? '#ff4646' : '#FFDD21';
                     accountsHtml += `
-                        <div class="summary-account">
-                            <div class="summary-account-header" data-account="${account}">
-                                <span>${account}</span>
-                                <span style="color: ${accountTotalColor}">${accountTotal.toFixed(2)}</span>
+                            <div class="summary-account">
+                                <div class="summary-account-header" data-account="${account}">
+                                    <span>${account}</span>
+                                    <span style="color: ${accountTotalColor}">${accountTotal.toFixed(2)}</span>
+                                </div>
+                                <div class="summary-article-container" id="articles-${account.replace(/\s/g, '')}">
+                                    ${articlesHtml}
+                                </div>
                             </div>
-                            <div class="summary-article-container" id="articles-${account.replace(/\s/g,'')}">
-                                ${articlesHtml}
-                            </div>
-                        </div>
-                    `;
+                        `;
                 }
                 const typeTotalColor = typeTotal < 0 ? '#ff4646' : '#36FF00';
                 html += `
-                    <div class="summary-block">
-                        <div class="summary-type" data-type="${type}">
-                            <span>${type}</span>
-                            <span class="summary-type-total" style="color: ${typeTotalColor}">${typeTotal.toFixed(2)}</span>
+                        <div class="summary-block">
+                            <div class="summary-type" data-type="${type}">
+                                <span>${type}</span>
+                                <span class="summary-type-total" style="color: ${typeTotalColor}">${typeTotal.toFixed(2)}</span>
+                            </div>
+                            <div class="summary-account-container" id="accounts-${type.replace(/\s/g, '')}">
+                                ${accountsHtml}
+                            </div>
                         </div>
-                        <div class="summary-account-container" id="accounts-${type.replace(/\s/g,'')}">
-                            ${accountsHtml}
-                        </div>
-                    </div>
-                `;
+                    `;
             }
             summaryContentDiv.innerHTML = html;
 
             document.querySelectorAll('.summary-type').forEach(el => {
                 el.addEventListener('click', () => {
                     const type = el.dataset.type;
-                    const container = document.getElementById(`accounts-${type.replace(/\s/g,'')}`);
+                    const container = document.getElementById(`accounts-${type.replace(/\s/g, '')}`);
                     container.classList.toggle('expanded');
                 });
             });
@@ -1782,7 +1873,7 @@
                 el.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const account = el.dataset.account;
-                    const container = document.getElementById(`articles-${account.replace(/\s/g,'')}`);
+                    const container = document.getElementById(`articles-${account.replace(/\s/g, '')}`);
                     container.classList.toggle('expanded');
                 });
             });
@@ -1834,11 +1925,11 @@
                 }
                 const color = colors[index % colors.length];
                 const cardHtml = `
-                    <div class="summary-card" style="border-color: ${color}">
-                        <div class="card-title" style="color: ${color}">${cat}</div>
-                        <div class="card-amount" style="color: ${color}">${total.toFixed(2)}</div>
-                    </div>
-                `;
+                        <div class="summary-card" style="border-color: ${color}">
+                            <div class="card-title" style="color: ${color}">${cat}</div>
+                            <div class="card-amount" style="color: ${color}">${total.toFixed(2)}</div>
+                        </div>
+                    `;
                 htmlAdd += cardHtml;
                 htmlSum += cardHtml;
             });
@@ -1883,7 +1974,7 @@
             let html = `<div style="color:#36FF00; font-weight:600; margin-bottom:8px;">${type}</div>`;
             for (let [account, val] of Object.entries(data.accounts)) {
                 if (Math.abs(val) > 0.01) {
-                    html += `<div style="display:flex; justify-content:space-between; padding:4px 0;"><span>${account}</span><span style="color:${val<0?'#ff4646':'#36FF00'}">${val.toFixed(2)}</span></div>`;
+                    html += `<div style="display:flex; justify-content:space-between; padding:4px 0;"><span>${account}</span><span style="color:${val < 0 ? '#ff4646' : '#36FF00'}">${val.toFixed(2)}</span></div>`;
                 }
             }
             chartDetailDiv.innerHTML = html;
@@ -1931,52 +2022,86 @@
             updateErrorHighlights();
         }
 
-        // Новая функция сохранения – знак берётся из signMap по значению выбранного столбца
+        function getSignFromCategories(type, account, article) {
+            const normalizedType = (type || '').toString().trim();
+            const normalizedAccount = (account || '').toString().trim();
+            const normalizedArticle = (article || '').toString().trim();
+
+            const accountData = categoriesData?.[normalizedType]?.[normalizedAccount];
+            if (!Array.isArray(accountData)) {
+                throw new Error(`Не найдена группа категорий для: ${normalizedType} / ${normalizedAccount}`);
+            }
+
+            const articleObj = accountData.find(item =>
+                (item?.name || '').toString().trim() === normalizedArticle
+            );
+
+            if (!articleObj) {
+                throw new Error(`Не найден знак для: ${normalizedType} / ${normalizedAccount} / ${normalizedArticle}`);
+            }
+
+            const sign = (articleObj.sign || '').toString().trim().toLowerCase();
+
+            if (sign !== 'plus' && sign !== 'minus') {
+                throw new Error(`Некорректный знак для: ${normalizedType} / ${normalizedAccount} / ${normalizedArticle}`);
+            }
+
+            return sign;
+        }
+
         async function saveExpense(type, account, article, amount, comment) {
-            // Определяем, какое значение использовать для поиска знака
-            let signKey = '';
-            if (signColumn === 1) {
-                signKey = typeSelect.value;
-            } else if (signColumn === 2) {
-                signKey = accountSelect.value;
-            } else {
-                signKey = articleSelect.value;
-            }
-            const sign = signMap.get(signKey) || 'plus';
-            if (!signMap.has(signKey)) {
-                console.warn(`Sign not found for key "${signKey}" (signColumn=${signColumn}), using default 'plus'`);
-            }
-            
-            const formData = new URLSearchParams();
-            formData.append('type', typeEnabled ? type : '');
-            formData.append('account', accountEnabled ? account : '');
-            formData.append('article', articleEnabled ? article : '');
-            formData.append('sign', sign);
-            formData.append('amount', amount);
-            formData.append('comment', comment);
-            
             try {
-                await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
+                const finalType = typeEnabled ? type : '';
+                const finalAccount = accountEnabled ? account : '';
+                const finalArticle = articleEnabled ? article : '';
+
+                const sign = getSignFromCategories(finalType, finalAccount, finalArticle);
+
+                const formData = new URLSearchParams();
+                formData.append('type', finalType);
+                formData.append('account', finalAccount);
+                formData.append('article', finalArticle);
+                formData.append('sign', sign);
+                formData.append('amount', amount);
+                formData.append('comment', comment || '');
+
+                await fetch(getAppUrlRequired(), {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: formData
+                });
+
                 statusDiv.textContent = '✅ Запись отправлена!';
                 statusDiv.className = 'status success';
                 vibrateSuccess();
-                
+
                 amountInput.value = '';
                 commentInput.value = '';
                 typeSelect.value = '';
                 accountSelect.value = '';
                 articleSelect.value = '';
+
                 typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
-                accountSelectedText.textContent = settingsData?.account?.firstText || 'Сначала выберите тип';
-                articleSelectedText.textContent = settingsData?.article?.firstText || 'Сначала выберите счёт';
+
+                if (linked) {
+                    resetAccountAndArticle();
+                } else {
+                    accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт';
+                    articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью';
+                }
+
                 checkSaveButton();
-                
+
                 loadHistory();
                 loadSummary();
                 loadChartData();
-                if (window.Telegram?.WebApp) setTimeout(() => Telegram.WebApp.close(), 1000);
+
+                if (window.Telegram?.WebApp) {
+                    setTimeout(() => Telegram.WebApp.close(), 1000);
+                }
             } catch (e) {
-                statusDiv.textContent = '❌ Ошибка при сохранении';
+                console.error('Save error:', e);
+                statusDiv.textContent = `❌ Ошибка: ${e.message || 'не удалось сохранить'}`;
                 statusDiv.className = 'status error';
                 saveBtn.disabled = false;
                 updateErrorHighlights();
@@ -2002,7 +2127,7 @@
             document.addEventListener('click', closeAllDropdowns);
 
             amountInput.addEventListener('input', checkSaveButton);
-            commentInput.addEventListener('input', () => {});
+            commentInput.addEventListener('input', () => { });
 
             saveBtn.addEventListener('click', () => {
                 const type = typeSelect.value;
@@ -2021,13 +2146,13 @@
         function openEditModal(record) {
             currentEditRow = record.row;
             currentEditSign = record.amount < 0 ? 'minus' : 'plus';
-            
+
             editDisplayType.innerHTML = `<span style="color:#36FF00">Тип:</span> ${record.type}`;
             editDisplayAccount.innerHTML = `<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
             editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${record.article}`;
             editAmount.value = Math.abs(record.amount);
             editComment.value = record.comment || '';
-            
+
             modal.classList.add('show');
         }
 
@@ -2035,7 +2160,7 @@
             cancelBtn.addEventListener('click', () => {
                 modal.classList.remove('show');
             });
-            
+
             deleteBtn.addEventListener('click', async () => {
                 if (!currentEditRow) return;
                 if (!confirm('Удалить запись?')) return;
@@ -2049,12 +2174,12 @@
                     alert('Ошибка удаления');
                 }
             });
-            
+
             updateBtn.addEventListener('click', async () => {
                 if (!currentEditRow) return;
                 const amount = parseFloat(editAmount.value);
                 if (isNaN(amount) || amount <= 0) return;
-                
+
                 const formData = new URLSearchParams();
                 formData.append('type', editDisplayType.innerText.split(' ')[1]);
                 formData.append('account', editDisplayAccount.innerText.split(' ')[1]);
@@ -2063,7 +2188,7 @@
                 formData.append('amount', amount);
                 formData.append('comment', editComment.value);
                 formData.append('row', currentEditRow);
-                
+
                 try {
                     await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
                     modal.classList.remove('show');
@@ -2156,4 +2281,5 @@
         if (window.Telegram?.WebApp) Telegram.WebApp.ready();
     </script>
 </body>
+
 </html>
