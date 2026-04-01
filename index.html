@@ -2022,49 +2022,31 @@
             updateErrorHighlights();
         }
 
-        function getSignFromCategories(type, account, article) {
-            const normalizedType = (type || '').toString().trim();
-            const normalizedAccount = (account || '').toString().trim();
-            const normalizedArticle = (article || '').toString().trim();
-
-            const accountData = categoriesData?.[normalizedType]?.[normalizedAccount];
-            if (!Array.isArray(accountData)) {
-                throw new Error(`Не найдена группа категорий для: ${normalizedType} / ${normalizedAccount}`);
-            }
-
-            const articleObj = accountData.find(item =>
-                (item?.name || '').toString().trim() === normalizedArticle
-            );
-
-            if (!articleObj) {
-                throw new Error(`Не найден знак для: ${normalizedType} / ${normalizedAccount} / ${normalizedArticle}`);
-            }
-
-            const sign = (articleObj.sign || '').toString().trim().toLowerCase();
-
-            if (sign !== 'plus' && sign !== 'minus') {
-                throw new Error(`Некорректный знак для: ${normalizedType} / ${normalizedAccount} / ${normalizedArticle}`);
-            }
-
-            return sign;
-        }
-
+        // Новая функция сохранения, использующая signMap
         async function saveExpense(type, account, article, amount, comment) {
+            // Определяем, какое значение использовать для поиска знака в signMap
+            let signKey = '';
+            if (signColumn === 1) {
+                signKey = type;
+            } else if (signColumn === 2) {
+                signKey = account;
+            } else {
+                signKey = article;
+            }
+            const sign = signMap.get(signKey) || 'plus';
+            if (!signMap.has(signKey)) {
+                console.warn(`Sign not found for key "${signKey}" (signColumn=${signColumn}), using default 'plus'`);
+            }
+
+            const formData = new URLSearchParams();
+            formData.append('type', typeEnabled ? type : '');
+            formData.append('account', accountEnabled ? account : '');
+            formData.append('article', articleEnabled ? article : '');
+            formData.append('sign', sign);
+            formData.append('amount', amount);
+            formData.append('comment', comment || '');
+
             try {
-                const finalType = typeEnabled ? type : '';
-                const finalAccount = accountEnabled ? account : '';
-                const finalArticle = articleEnabled ? article : '';
-
-                const sign = getSignFromCategories(finalType, finalAccount, finalArticle);
-
-                const formData = new URLSearchParams();
-                formData.append('type', finalType);
-                formData.append('account', finalAccount);
-                formData.append('article', finalArticle);
-                formData.append('sign', sign);
-                formData.append('amount', amount);
-                formData.append('comment', comment || '');
-
                 await fetch(getAppUrlRequired(), {
                     method: 'POST',
                     mode: 'no-cors',
