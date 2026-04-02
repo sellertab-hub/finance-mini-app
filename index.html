@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -1030,7 +1029,6 @@
         let chartInstances = {};
         let currentSummaryData = null;
         let currentEditRow = null;
-        let currentEditSign = 'plus';
         let allMonths = [];
         let allYears = [];
 
@@ -1040,9 +1038,6 @@
         let linked = true;
         let editEnabled = true;
         let summaryCategories = [];
-        let signColumn = 3; // по умолчанию 3
-
-        let signMap = new Map(); // ключ – значение из столбца, указанного в signColumn, значение – знак
 
         // ===== ЭЛЕМЕНТЫ =====
         const loadingScreen = document.getElementById('loadingScreen');
@@ -1213,7 +1208,6 @@
             if (settingsData.linked !== undefined) linked = settingsData.linked;
             if (settingsData.editEnabled !== undefined) editEnabled = settingsData.editEnabled;
             if (settingsData.summaryCategories) summaryCategories = settingsData.summaryCategories;
-            if (settingsData.signColumn) signColumn = settingsData.signColumn;
         }
 
         async function loadCategories() {
@@ -1225,21 +1219,6 @@
                 allTypes = data.allTypes || [];
                 allAccounts = data.allAccounts || [];
                 allArticles = data.allArticles || [];
-                const allRows = data.allRows || [];
-
-                console.log('All rows:', allRows);
-
-                // Строим signMap по простой логике: ключ = значение в столбце signColumn
-                signMap.clear();
-                const colIndex = signColumn - 1; // 0-индекс столбца
-                allRows.forEach(row => {
-                    const key = row[colIndex]?.trim();
-                    const sign = row[3]?.trim().toLowerCase();
-                    if (key && (sign === 'plus' || sign === 'minus')) {
-                        signMap.set(key, sign);
-                    }
-                });
-                console.log('Sign map built:', signMap);
 
                 populateTypeDropdown();
 
@@ -2022,27 +2001,11 @@
             updateErrorHighlights();
         }
 
-        // Новая функция сохранения, использующая signMap
         async function saveExpense(type, account, article, amount, comment) {
-            // Определяем, какое значение использовать для поиска знака в signMap
-            let signKey = '';
-            if (signColumn === 1) {
-                signKey = type;
-            } else if (signColumn === 2) {
-                signKey = account;
-            } else {
-                signKey = article;
-            }
-            const sign = signMap.get(signKey) || 'plus';
-            if (!signMap.has(signKey)) {
-                console.warn(`Sign not found for key "${signKey}" (signColumn=${signColumn}), using default 'plus'`);
-            }
-
             const formData = new URLSearchParams();
             formData.append('type', typeEnabled ? type : '');
             formData.append('account', accountEnabled ? account : '');
             formData.append('article', articleEnabled ? article : '');
-            formData.append('sign', sign);
             formData.append('amount', amount);
             formData.append('comment', comment || '');
 
@@ -2127,14 +2090,11 @@
 
         function openEditModal(record) {
             currentEditRow = record.row;
-            currentEditSign = record.amount < 0 ? 'minus' : 'plus';
-
             editDisplayType.innerHTML = `<span style="color:#36FF00">Тип:</span> ${record.type}`;
             editDisplayAccount.innerHTML = `<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
             editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${record.article}`;
             editAmount.value = Math.abs(record.amount);
             editComment.value = record.comment || '';
-
             modal.classList.add('show');
         }
 
@@ -2161,16 +2121,13 @@
                 if (!currentEditRow) return;
                 const amount = parseFloat(editAmount.value);
                 if (isNaN(amount) || amount <= 0) return;
-
                 const formData = new URLSearchParams();
                 formData.append('type', editDisplayType.innerText.split(' ')[1]);
                 formData.append('account', editDisplayAccount.innerText.split(' ')[1]);
                 formData.append('article', editDisplayArticle.innerText.split(' ')[1]);
-                formData.append('sign', currentEditSign);
                 formData.append('amount', amount);
                 formData.append('comment', editComment.value);
                 formData.append('row', currentEditRow);
-
                 try {
                     await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
                     modal.classList.remove('show');
@@ -2263,5 +2220,4 @@
         if (window.Telegram?.WebApp) Telegram.WebApp.ready();
     </script>
 </body>
-
 </html>
