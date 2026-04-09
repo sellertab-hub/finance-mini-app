@@ -1235,13 +1235,13 @@
             }
         }
 
-        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ =====
+        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ (без сортировки) =====
         function populateTypeDropdown() {
             let items;
             if (linked) {
-                items = Object.keys(categoriesData).sort();
+                items = Object.keys(categoriesData); // порядок из таблицы (ключи в порядке добавления)
             } else {
-                items = allTypes;
+                items = allTypes; // уже в порядке из таблицы
             }
 
             typeSelect.innerHTML = '';
@@ -1338,7 +1338,7 @@
         function updateAccountOptionsLinked() {
             const type = typeSelect.value;
             if (!type) return;
-            const accounts = Object.keys(categoriesData[type] || {}).sort();
+            const accounts = Object.keys(categoriesData[type] || {}); // без сортировки
             accountSelect.innerHTML = '';
             const placeholder = document.createElement('option');
             placeholder.value = '';
@@ -1365,7 +1365,7 @@
             const type = typeSelect.value;
             const account = accountSelect.value;
             if (!type || !account) return;
-            const articles = (categoriesData[type][account] || []).map(a => a.name);
+            const articles = (categoriesData[type][account] || []).map(a => a.name); // без сортировки
             articleSelect.innerHTML = '';
             const placeholder = document.createElement('option');
             placeholder.value = '';
