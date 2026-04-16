@@ -6,7 +6,7 @@
     <title>Finance Mini App</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* Все стили без изменений (как в предыдущей стабильной версии) */
+        /* Все стили без изменений */
         * {
             margin: 0;
             padding: 0;
@@ -338,7 +338,8 @@
         }
 
         input[type="number"],
-        textarea {
+        textarea,
+        input[type="date"] {
             width: 100%;
             padding: 14px 12px;
             background: #1a1a1a;
@@ -353,7 +354,8 @@
         }
 
         input[type="number"]:focus,
-        textarea:focus {
+        textarea:focus,
+        input[type="date"]:focus {
             border-color: #FFDD21;
             box-shadow: 0 0 0 3px rgba(255, 221, 33, 0.2);
         }
@@ -911,13 +913,18 @@
                     <div id="editDisplayAccount" style="margin-bottom:6px;"></div>
                     <div id="editDisplayArticle" style="margin-bottom:6px;"></div>
                 </div>
+                <!-- НОВОЕ ПОЛЕ ДЛЯ ДАТЫ -->
+                <div style="margin-bottom: 12px;">
+                    <label style="color: #aaa; display: block; margin-bottom: 4px;">Дата</label>
+                    <input type="date" id="editDate" style="width: 100%; padding: 12px; background: #1a1a1a; border: 1px solid #333; border-radius: 16px; color: #fff;" />
+                </div>
                 <input type="number" id="editAmount" placeholder="Сумма" min="0" step="0.01" />
                 <textarea id="editComment" placeholder="Комментарий"></textarea>
             </div>
             <div class="modal-buttons">
                 <button class="modal-btn delete" id="deleteBtn">Удалить</button>
                 <button class="modal-btn cancel" id="cancelBtn">Отмена</button>
-                <button class="modal-btn.edit" id="updateBtn">Сохранить</button>
+                <button class="modal-btn edit" id="updateBtn">Сохранить</button>
             </div>
         </div>
     </div>
@@ -1235,13 +1242,13 @@
             }
         }
 
-        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ (без сортировки) =====
+        // ===== ФУНКЦИИ ЗАПОЛНЕНИЯ ВЫПАДАЮЩИХ =====
         function populateTypeDropdown() {
             let items;
             if (linked) {
-                items = Object.keys(categoriesData); // порядок из таблицы (ключи в порядке добавления)
+                items = Object.keys(categoriesData);
             } else {
-                items = allTypes; // уже в порядке из таблицы
+                items = allTypes;
             }
 
             typeSelect.innerHTML = '';
@@ -1338,7 +1345,7 @@
         function updateAccountOptionsLinked() {
             const type = typeSelect.value;
             if (!type) return;
-            const accounts = Object.keys(categoriesData[type] || {}); // без сортировки
+            const accounts = Object.keys(categoriesData[type] || {});
             accountSelect.innerHTML = '';
             const placeholder = document.createElement('option');
             placeholder.value = '';
@@ -1365,7 +1372,7 @@
             const type = typeSelect.value;
             const account = accountSelect.value;
             if (!type || !account) return;
-            const articles = (categoriesData[type][account] || []).map(a => a.name); // без сортировки
+            const articles = (categoriesData[type][account] || []).map(a => a.name);
             articleSelect.innerHTML = '';
             const placeholder = document.createElement('option');
             placeholder.value = '';
@@ -1388,7 +1395,6 @@
         }
 
         function resetAccountAndArticle() {
-            // Счёт
             accountSelect.innerHTML = '';
             const placeholderAcc = document.createElement('option');
             placeholderAcc.value = '';
@@ -1398,7 +1404,7 @@
             accountButton.disabled = true;
             accountDropdown.innerHTML = '';
             accountSelect.value = '';
-            // Статья
+
             articleSelect.innerHTML = '';
             const placeholderArt = document.createElement('option');
             placeholderArt.value = '';
@@ -1410,7 +1416,6 @@
             articleSelect.value = '';
         }
 
-        // ===== ПОДСВЕТКА ОШИБОК =====
         function updateErrorHighlights() {
             if (typeEnabled) {
                 const typeOk = typeSelect.value && typeSelect.value !== '';
@@ -1434,7 +1439,6 @@
             amountInput.classList.toggle('error', !amountOk);
         }
 
-        // ===== ВИБРАЦИЯ =====
         function vibrateSuccess() {
             if (window.Telegram?.WebApp?.HapticFeedback) {
                 for (let i = 0; i < 3; i++) {
@@ -1445,7 +1449,6 @@
             }
         }
 
-        // ===== ИНИЦИАЛИЗАЦИЯ =====
         async function init() {
             loadingScreen.classList.remove('hidden');
 
@@ -1506,7 +1509,6 @@
             });
         }
 
-        // ===== ФИЛЬТРЫ =====
         function attachPeriodListeners() {
             historyPeriodBtns.forEach(btn => {
                 if (btn.id && btn.id.includes('MoreBtn')) return;
@@ -1959,7 +1961,6 @@
             chartDetailDiv.innerHTML = html;
         }
 
-        // ===== ЛОГИКА ADD =====
         function populateDropdown(dropdown, items, selected, onChange) {
             dropdown.innerHTML = '';
             items.forEach(item => {
@@ -2095,6 +2096,21 @@
             editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${record.article}`;
             editAmount.value = Math.abs(record.amount);
             editComment.value = record.comment || '';
+            
+            // Заполняем дату
+            const editDateInput = document.getElementById('editDate');
+            if (editDateInput) {
+                const date = new Date(record.timestamp);
+                if (!isNaN(date)) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    editDateInput.value = `${year}-${month}-${day}`;
+                } else {
+                    editDateInput.value = '';
+                }
+            }
+            
             modal.classList.add('show');
         }
 
@@ -2128,6 +2144,13 @@
                 formData.append('amount', amount);
                 formData.append('comment', editComment.value);
                 formData.append('row', currentEditRow);
+                
+                // Добавляем дату, если поле существует и не пустое
+                const editDateInput = document.getElementById('editDate');
+                if (editDateInput && editDateInput.value) {
+                    formData.append('date', editDateInput.value);
+                }
+                
                 try {
                     await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
                     modal.classList.remove('show');
@@ -2213,7 +2236,6 @@
             });
         }
 
-        // ===== СТАРТ =====
         attachConnectionListeners();
         initApp();
 
