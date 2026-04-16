@@ -143,6 +143,7 @@
         <button class="segmented-btn" data-screen="2">SUM</button>
     </div>
     <div class="screens-container" id="screensContainer">
+        <!-- ADD -->
         <div class="screen" id="screen0">
             <div class="summary-cards" id="summaryCardsAdd"></div>
             <div class="custom-select" id="typeSelectContainer"><select id="typeSelect" class="native-select"></select><div class="select-button" id="typeSelectButton"><span id="typeSelectedText">Загрузка...</span><span class="arrow"></span></div><div class="select-dropdown" id="typeDropdown"></div></div>
@@ -153,6 +154,7 @@
             <button id="saveBtn" disabled>Сохранить</button>
             <div id="statusMessage" class="status"></div>
         </div>
+        <!-- FLOW -->
         <div class="screen" id="screen1">
             <div class="period-selector" id="historyPeriod"><button class="period-btn" data-period="today">Today</button><button class="period-btn" data-period="week">Week</button><button class="period-btn" id="historyMoreBtn">More</button></div>
             <div class="more-filters" id="historyMoreFilters">
@@ -162,6 +164,7 @@
             <div id="historyList"></div>
             <div id="historyStatus" style="text-align:center;padding:16px;color:#aaa;"></div>
         </div>
+        <!-- SUM -->
         <div class="screen" id="screen2">
             <div class="period-selector" id="summaryPeriod"><button class="period-btn" data-period="today">Today</button><button class="period-btn" data-period="week">Week</button><button class="period-btn" id="summaryMoreBtn">More</button><div class="view-toggle" id="viewToggle">📊</div></div>
             <div class="more-filters" id="summaryMoreFilters">
@@ -383,6 +386,7 @@
         async function loadHistory(){ historyListDiv.innerHTML=''; historyStatus.textContent='Загрузка...'; try{ const r=await fetch(buildUrl('list',currentFilterHistory)); const d=await r.json(); if(d.error) throw new Error(d.error); renderHistory(d); }catch(e){ historyStatus.textContent='Ошибка загрузки истории'; } }
         async function loadSummary(){ summaryContentDiv.innerHTML=''; summaryStatus.textContent='Загрузка...'; try{ const r=await fetch(buildUrl('summary',currentFilterSummary)); const d=await r.json(); if(d.error) throw new Error(d.error); renderSummary(d); updateCardsFromSummary(d); }catch(e){ summaryStatus.textContent='Ошибка загрузки итогов'; } }
         async function loadChartData(){ try{ const r=await fetch(buildUrl('chart',currentFilterSummary)); const d=await r.json(); if(d.error) throw new Error(d.error); currentSummaryData=d; if(summaryChartsDiv.style.display==='block') renderCharts(d); }catch(e){ console.error(e); } }
+
         function renderHistory(recs){
             historyStatus.textContent=''; if(!recs.length){ historyStatus.textContent='Нет записей'; return; }
             recs.sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
@@ -395,28 +399,78 @@
                 historyListDiv.appendChild(item);
             });
         }
-        function renderSummary(sum){ /* без изменений, как раньше */ }
-        function updateCardsFromSummary(sum){ /* без изменений */ }
-        function renderCharts(data){ /* без изменений */ }
-        function showChartDetail(type,data){ /* без изменений */ }
+
+        function renderSummary(summary){
+            summaryStatus.textContent='';
+            if(Object.keys(summary).length===0){ summaryStatus.textContent='Нет данных'; return; }
+            let html='';
+            for(let type in summary){
+                let typeTotal=0;
+                let accountsHtml='';
+                for(let account in summary[type]){
+                    let accountTotal=0;
+                    let articlesHtml='';
+                    for(let article in summary[type][account]){
+                        if(article.startsWith('🏁')) continue;
+                        let amount=summary[type][account][article];
+                        accountTotal+=amount;
+                        const amountColor=amount<0?'#ff4646':'#36FF00';
+                        articlesHtml+=`<div class="summary-article"><span>${article}</span><span class="summary-article-amount" style="color:${amountColor}">${amount.toFixed(2)}</span></div>`;
+                    }
+                    typeTotal+=accountTotal;
+                    const accountTotalColor=accountTotal<0?'#ff4646':'#FFDD21';
+                    accountsHtml+=`<div class="summary-account"><div class="summary-account-header" data-account="${account}"><span>${account}</span><span style="color:${accountTotalColor}">${accountTotal.toFixed(2)}</span></div><div class="summary-article-container" id="articles-${account.replace(/\s/g,'')}">${articlesHtml}</div></div>`;
+                }
+                const typeTotalColor=typeTotal<0?'#ff4646':'#36FF00';
+                html+=`<div class="summary-block"><div class="summary-type" data-type="${type}"><span>${type}</span><span class="summary-type-total" style="color:${typeTotalColor}">${typeTotal.toFixed(2)}</span></div><div class="summary-account-container" id="accounts-${type.replace(/\s/g,'')}">${accountsHtml}</div></div>`;
+            }
+            summaryContentDiv.innerHTML=html;
+            document.querySelectorAll('.summary-type').forEach(el=>el.addEventListener('click',()=>{ const type=el.dataset.type; document.getElementById(`accounts-${type.replace(/\s/g,'')}`).classList.toggle('expanded'); }));
+            document.querySelectorAll('.summary-account-header').forEach(el=>el.addEventListener('click',e=>{ e.stopPropagation(); const acc=el.dataset.account; document.getElementById(`articles-${acc.replace(/\s/g,'')}`).classList.toggle('expanded'); }));
+        }
+
+        function updateCardsFromSummary(summary){
+            if(!summaryCategories.length){ if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=''; if(summaryCardsDiv) summaryCardsDiv.innerHTML=''; return; }
+            const colors=['#36FF00','#FFDD21','#4069FF'];
+            let htmlAdd='', htmlSum='';
+            summaryCategories.forEach((cat,index)=>{
+                let total=0;
+                for(let type in summary){
+                    if(type===cat){ for(let account in summary[type]){ for(let article in summary[type][account]){ total+=summary[type][account][article]; } } break; }
+                }
+                if(total===0){ for(let type in summary){ for(let account in summary[type]){ if(account===cat){ for(let article in summary[type][account]){ total+=summary[type][account][article]; } break; } } } }
+                if(total===0){ for(let type in summary){ for(let account in summary[type]){ for(let article in summary[type][account]){ if(article===cat) total+=summary[type][account][article]; } } } }
+                const color=colors[index%colors.length];
+                const cardHtml=`<div class="summary-card" style="border-color:${color}"><div class="card-title" style="color:${color}">${cat}</div><div class="card-amount" style="color:${color}">${total.toFixed(2)}</div></div>`;
+                htmlAdd+=cardHtml; htmlSum+=cardHtml;
+            });
+            if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=htmlAdd;
+            if(summaryCardsDiv) summaryCardsDiv.innerHTML=htmlSum;
+        }
+
+        function renderCharts(data){
+            if(chartInstances.types) chartInstances.types.destroy();
+            const typesData={};
+            for(let [type,val] of Object.entries(data.types)){ if(Math.abs(val)>0.01) typesData[type]=val; }
+            const ctx=chartCanvas.getContext('2d');
+            chartInstances.types=new Chart(ctx,{type:'pie',data:{labels:Object.keys(typesData),datasets:[{data:Object.values(typesData),backgroundColor:['#36FF00','#FFDD21','#4069FF','#ff4646','#aa80ff','#ffaa80'],borderColor:'#000',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#fff'}}},onClick:(e,item)=>{ if(item.length>0) showChartDetail(Object.keys(typesData)[item[0].dataIndex],data); }}});
+        }
+
+        function showChartDetail(type,data){
+            let html=`<div style="color:#36FF00;font-weight:600;margin-bottom:8px;">${type}</div>`;
+            for(let [acc,val] of Object.entries(data.accounts)) if(Math.abs(val)>0.01) html+=`<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>${acc}</span><span style="color:${val<0?'#ff4646':'#36FF00'}">${val.toFixed(2)}</span></div>`;
+            chartDetailDiv.innerHTML=html;
+        }
 
         function openEditModal(record){
-            currentEditRow = record.row;
-            currentEditType = record.type;
-            currentEditAccount = record.account;
-            currentEditArticle = record.article;
-            editDisplayType.innerHTML = `<span style="color:#36FF00">Тип:</span> ${record.type}`;
-            editDisplayAccount.innerHTML = `<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
-            editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${record.article}`;
-            editAmount.value = Math.abs(record.amount);
-            editComment.value = record.comment || '';
-            const editDateInput = document.getElementById('editDate');
-            if(editDateInput){
-                const d = new Date(record.timestamp);
-                if(!isNaN(d)){
-                    editDateInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                } else editDateInput.value = '';
-            }
+            currentEditRow=record.row; currentEditType=record.type; currentEditAccount=record.account; currentEditArticle=record.article;
+            editDisplayType.innerHTML=`<span style="color:#36FF00">Тип:</span> ${record.type}`;
+            editDisplayAccount.innerHTML=`<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
+            editDisplayArticle.innerHTML=`<span style="color:#4069FF">Статья:</span> ${record.article}`;
+            editAmount.value=Math.abs(record.amount);
+            editComment.value=record.comment||'';
+            const editDateInput=document.getElementById('editDate');
+            if(editDateInput){ const d=new Date(record.timestamp); if(!isNaN(d)) editDateInput.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; else editDateInput.value=''; }
             modal.classList.add('show');
         }
 
@@ -425,22 +479,12 @@
             deleteBtn.addEventListener('click',async()=>{ if(!currentEditRow) return; if(!confirm('Удалить запись?')) return; try{ await fetch(`${getAppUrlRequired()}?action=delete&row=${currentEditRow}`,{mode:'no-cors'}); modal.classList.remove('show'); loadHistory(); loadSummary(); loadChartData(); }catch(e){ alert('Ошибка удаления'); } });
             updateBtn.addEventListener('click',async()=>{
                 if(!currentEditRow) return;
-                const amount = parseFloat(editAmount.value);
-                if(isNaN(amount)||amount<=0) return;
-                const formData = new URLSearchParams();
-                formData.append('type', currentEditType);
-                formData.append('account', currentEditAccount);
-                formData.append('article', currentEditArticle);
-                formData.append('amount', amount);
-                formData.append('comment', editComment.value);
-                formData.append('row', currentEditRow);
-                const editDateInput = document.getElementById('editDate');
-                if(editDateInput && editDateInput.value) formData.append('date', editDateInput.value);
-                try{
-                    await fetch(getAppUrlRequired(),{method:'POST',mode:'no-cors',body:formData});
-                    modal.classList.remove('show');
-                    loadHistory(); loadSummary(); loadChartData();
-                }catch(e){ alert('Ошибка обновления'); }
+                const amount=parseFloat(editAmount.value); if(isNaN(amount)||amount<=0) return;
+                const formData=new URLSearchParams();
+                formData.append('type',currentEditType); formData.append('account',currentEditAccount); formData.append('article',currentEditArticle);
+                formData.append('amount',amount); formData.append('comment',editComment.value); formData.append('row',currentEditRow);
+                const editDateInput=document.getElementById('editDate'); if(editDateInput&&editDateInput.value) formData.append('date',editDateInput.value);
+                try{ await fetch(getAppUrlRequired(),{method:'POST',mode:'no-cors',body:formData}); modal.classList.remove('show'); loadHistory(); loadSummary(); loadChartData(); }catch(e){ alert('Ошибка обновления'); }
             });
         }
 
