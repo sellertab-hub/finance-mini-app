@@ -347,13 +347,12 @@
 
         async function loadDataForFilter(filter) {
             const key = buildPeriodKey(filter);
-            // Check cache
+            // Serve from cache if available (optimistic saves already injected)
             if (recordsCache[key]) {
                 return recordsCache[key];
             }
             try {
                 const data = await fetchRecords(filter);
-                // Merge pending (optimistic) records
                 const mergedRecords = mergePending(data.records, filter);
                 const mergedSummary = computeClientSummary(mergedRecords);
                 const mergedChart = computeClientChart(mergedRecords);
@@ -577,13 +576,11 @@
             chartDetailDiv.innerHTML=html;
         }
 
-        // --- Optimistic save: add record to local cache immediately + server POST in background ---
+        // --- 🚀 OPTIMISTIC SAVE: mutate cache in-place, zero server requests ---
 
-        function addToCache(record) {
-            // Add to pending
-            const serverRow = -Date.now(); // negative = temporary row id
+        function applyOptimisticSave(record) {
             const optimistic = {
-                row: serverRow,
+                row: -Date.now(), // temporary negative id
                 timestamp: new Date().toISOString(),
                 type: record.type || '',
                 account: record.account || '',
@@ -591,12 +588,18 @@
                 amount: record.amount,
                 comment: record.comment || ''
             };
-            pendingRecords.push(optimistic);
-            // Keep pending non-durable (clear on next full server load)
-            // Invalidate cache for current filters — next load will re-merge
+            // Inject into every cached period so re-render is instant
             for (let key in recordsCache) {
-                delete recordsCache[key];
+                const cached = recordsCache[key];
+                if (!cached) continue;
+                // Prepend the new record (descending order)
+                cached.records.unshift(optimistic);
+                // Recompute summary and chart from updated records
+                cached.summary = computeClientSummary(cached.records);
+                cached.chartData = computeClientChart(cached.records);
             }
+            // Keep in pending for background sync later
+            pendingRecords.push(optimistic);
         }
 
         // --- Edit/Delete (require server roundtrip + invalidate cache) ---
@@ -896,19 +899,25 @@
                 const type = typeSelect.value, acc = accountSelect.value, art = articleSelect.value, am = parseFloat(amountInput.value), com = commentInput.value;
                 if((typeEnabled && !type) || (accountEnabled && !acc) || (articleEnabled && !art) || isNaN(am) || am <= 0) return;
 
-                saveBtn.disabled = true;
-                statusDiv.textContent = 'Отправка...';
-                statusDiv.className = 'status';
+                // --- 🚀 OPTIMISTIC: mutate cache, re-render instantly ---
+                applyOptimisticSave({ type, account: acc, article: art, amount: am, comment: com });
 
-                // Optimistic: add to local cache immediately
-                addToCache({ type, account: acc, article: art, amount: am, comment: com });
+                // Re-render all visible screens from cache (zero server calls)
+                const data = recordsCache[buildPeriodKey(currentFilterHistory)];
+                if (data) { historyListDiv.innerHTML = ''; historyStatus.textContent = ''; renderHistory(data.records); }
+                const sumData = recordsCache[buildPeriodKey(currentFilterSummary)];
+                if (sumData) {
+                    summaryContentDiv.innerHTML = ''; summaryStatus.textContent = '';
+                    renderSummary(sumData.summary);
+                    updateCardsFromSummary(sumData.summary);
+                    currentChartData = sumData.chartData;
+                    if (summaryChartsDiv.style.display === 'block') renderCharts(sumData.chartData);
+                }
+                // Also update ADD screen cards from cache if available
+                const addData = recordsCache['all'] || recordsCache[buildPeriodKey({period: monthOnlyForCards ? 'month' : 'all'})];
+                if (addData) updateCardsFromSummary(addData.summary);
+                else loadCardsData();
 
-                // If on FLOW/SUM views, refresh them from cache immediately (no server call)
-                if (screenLoaded[1]) loadHistory();
-                if (screenLoaded[2]) { loadSummary(); loadChartData(); }
-                loadCardsData(); // refresh ADD cards
-
-                // Also update pending display immediately
                 statusDiv.textContent = '✅ Отправлено!';
                 statusDiv.className = 'status success';
                 vibrateSuccess();
@@ -922,8 +931,9 @@
                 typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
                 if(linked) resetAccountAndArticle(); else { accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт'; articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью'; }
                 checkSaveButton();
+                saveBtn.disabled = false;
 
-                // Fire-and-forget POST to server
+                // Fire-and-forget POST to server (background sync)
                 const fd = new URLSearchParams();
                 fd.append('type', typeEnabled ? type : '');
                 fd.append('account', accountEnabled ? acc : '');
@@ -932,20 +942,16 @@
                 fd.append('comment', com || '');
                 fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: fd })
                     .then(() => {
-                        // Server roundtrip complete — we could clear cache, but user already sees data
-                        // Silent background refresh after a short delay to sync with server
+                        // Background sync: 5s after POST, silently re-fetch from server
+                        // to reconcile row ids and any server-side changes
                         setTimeout(() => {
-                            // Soft invalidate — next load will come from server
                             for (let key in recordsCache) delete recordsCache[key];
                             pendingRecords = [];
-                            // Only refresh if screen is still visible
                             if (screenLoaded[1]) loadHistory();
                             if (screenLoaded[2]) { loadSummary(); loadChartData(); }
-                        }, 3000);
+                        }, 5000);
                     })
-                    .catch(() => {
-                        // Failed — keep optimistic data, user won't notice unless they refresh
-                    });
+                    .catch(() => { /* optimistic data stays — user sees it */ });
             });
         }
 
