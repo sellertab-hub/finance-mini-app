@@ -328,10 +328,16 @@
             }
         }
 
-        // --- ADD screen card loading (uses separate endpoint for month/all) ---
+        // --- ADD screen card loading (uses cached total or server fallback) ---
 
         async function loadCardsData(){
             if(!summaryCategories.length){ if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=''; return; }
+            // If we have data from total!A1, use it (no server call)
+            if (currentSummaryFromTotal) {
+                renderCardsFromTotal(currentSummaryFromTotal);
+                return;
+            }
+            // Fallback: load from server
             const period = monthOnlyForCards ? 'month' : 'all';
             try {
                 const r = await fetch(`${getAppUrlRequired()}?action=cardsSummary&period=${period}`);
@@ -722,26 +728,134 @@
         }
         function vibrateSuccess(){ if(window.Telegram?.WebApp?.HapticFeedback){ for(let i=0;i<3;i++) setTimeout(()=>Telegram.WebApp.HapticFeedback.impactOccurred('light'),i*100); } }
 
-        // --- Init ---
+        // --- 🚀 FAST INIT: only fetch quickSummary + quickCategories ---
 
-        async function init(){
+        async function init() {
             loadingScreen.classList.remove('hidden');
-            await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
-            loadingScreen.classList.add('hidden'); appContainer.style.display='flex';
+            
+            // Parallel fetch: 2 single-cell reads + settings (small sheet) — all fast
+            const [summaryData, catData] = await Promise.all([
+                fetchQuickSummary().catch(() => null),
+                fetchQuickCategories().catch(() => null)
+            ]);
+            
+            // Apply categories from total!A2 (no server-side Categories read needed)
+            if (catData && catData.links) {
+                categoriesData = {};
+                allTypes = catData.allTypes || [];
+                allAccounts = catData.allAccounts || [];
+                allArticles = catData.allArticles || [];
+                
+                catData.links.forEach(([type, account, article]) => {
+                    if (!categoriesData[type]) categoriesData[type] = {};
+                    if (!categoriesData[type][account]) categoriesData[type][account] = [];
+                    if (!categoriesData[type][account].find(a => a.name === article)) {
+                        categoriesData[type][account].push({ name: article });
+                    }
+                });
+                
+                populateTypeDropdown();
+                if (linked) resetAccountAndArticle();
+                else { populateAccountDropdown(allAccounts); populateArticleDropdown(allArticles); }
+            } else {
+                // Fallback: load from server the old way
+                try {
+                    const r = await fetch(getAppUrlRequired()); 
+                    const d = await r.json();
+                    if (d.error) throw new Error(d.error);
+                    categoriesData = d.categories || {};
+                    allTypes = d.allTypes || [];
+                    allAccounts = d.allAccounts || [];
+                    allArticles = d.allArticles || [];
+                    populateTypeDropdown();
+                    if (linked) resetAccountAndArticle();
+                    else { populateAccountDropdown(allAccounts); populateArticleDropdown(allArticles); }
+                } catch(e) {
+                    typeSelectedText.textContent = 'Ошибка загрузки';
+                }
+            }
+            
+            // Pre-seed the cache with summary data from total!A1
+            if (summaryData && typeof summaryData === 'object') {
+                for (let key in recordsCache) delete recordsCache[key];
+                currentSummaryFromTotal = summaryData;
+            }
+            
+            // Load settings (needed for summaryCategories) + months + years
+            // These are all small sheets — still fast
+            await Promise.all([
+                loadSettings(),
+                loadMonths().catch(() => {}),
+                loadYears().catch(() => {})
+            ]);
+            
+            // Apply settings now that they're loaded
+            applySettings();
+            // Re-populate dropdowns with correct placeholder texts from settings
+            if (categoriesData) {
+                populateTypeDropdown();
+                if (linked) resetAccountAndArticle();
+                else { populateAccountDropdown(allAccounts); populateArticleDropdown(allArticles); }
+            }
+            
+            loadingScreen.classList.add('hidden');
+            appContainer.style.display = 'flex';
+            
             attachNavigationListeners();
             attachPeriodListeners();
             attachFilterListeners();
             attachSelectListeners();
             attachModalListeners();
             attachViewToggleListener();
+            
             setActivePeriod(historyPeriodBtns, 'today');
             setActivePeriod(summaryPeriodBtns, null);
             summaryMoreBtn.classList.add('active');
             currentFilterSummary = { period: 'all' };
-            // Lazy: only load screen 0 (ADD) cards initially
-            ensureScreenLoaded(0);
+            
+            // Show ADD screen cards from total!A1 data — now summaryCategories is ready
+            renderCardsFromTotal(summaryData);
+            
+            // Lazy: cards loaded, rest loads on screen switch
+            screenLoaded[0] = true;
+            
             screensContainer.addEventListener('scroll', syncSegmentedButtons);
             checkSaveButton();
+        }
+
+        async function fetchQuickSummary() {
+            const r = await fetch(`${getAppUrlRequired()}?action=quickSummary`, { cache: 'no-store' });
+            const data = await r.json();
+            if (data.error) throw new Error(data.error);
+            return data; // plain object like {BYN: 500, USD: 0, EUR: 0}
+        }
+
+        async function fetchQuickCategories() {
+            const r = await fetch(`${getAppUrlRequired()}?action=quickCategories`, { cache: 'no-store' });
+            const data = await r.json();
+            if (data.error) throw new Error(data.error);
+            return data; // { allTypes, allAccounts, allArticles, links }
+        }
+
+        let currentSummaryFromTotal = null;
+
+        function renderCardsFromTotal(summaryData) {
+            if (!summaryData || !summaryCategories.length) {
+                if (summaryCardsAddDiv) summaryCardsAddDiv.innerHTML = '';
+                if (summaryCardsDiv) summaryCardsDiv.innerHTML = '';
+                return;
+            }
+            const colors = ['#36FF00','#FFDD21','#4069FF'];
+            let htmlAdd = '', htmlSum = '';
+            summaryCategories.forEach((cat, index) => {
+                const total = summaryData[cat] || 0;
+                const color = colors[index % colors.length];
+                const cardHtml = `<div class="summary-card" style="border-color:${color}"><div class="card-title" style="color:${color}">${cat}</div><div class="card-amount" style="color:${color}">${total.toFixed(2)}</div></div>`;
+                htmlAdd += cardHtml;
+                htmlSum += cardHtml;
+            });
+            if (summaryCardsAddDiv) summaryCardsAddDiv.innerHTML = htmlAdd;
+            if (summaryCardsDiv) summaryCardsDiv.innerHTML = htmlSum;
         }
 
         function setActivePeriod(btns, per){ btns.forEach(b => b.classList.toggle('active', b.dataset.period === per)); }
@@ -913,9 +1027,19 @@
                     currentChartData = sumData.chartData;
                     if (summaryChartsDiv.style.display === 'block') renderCharts(sumData.chartData);
                 }
-                // Also update ADD screen cards from cache if available
+                // Also update ADD screen cards
+                // Try to update from recordsCache summary first
                 const addData = recordsCache['all'] || recordsCache[buildPeriodKey({period: monthOnlyForCards ? 'month' : 'all'})];
                 if (addData) updateCardsFromSummary(addData.summary);
+                // Also update currentSummaryFromTotal optimistically (ADD cards use this)
+                else if (currentSummaryFromTotal) {
+                    // type = currency (BYN/USD/EUR), account = direction (Расход/Приход)
+                    const currency = type; // BYN, USD, EUR
+                    const isExpense = (acc.toLowerCase().includes('расход') || acc.toLowerCase().includes('expense'));
+                    const sign = isExpense ? -1 : 1;
+                    currentSummaryFromTotal[currency] = (currentSummaryFromTotal[currency] || 0) + (am * sign);
+                    renderCardsFromTotal(currentSummaryFromTotal);
+                }
                 else loadCardsData();
 
                 statusDiv.textContent = '✅ Отправлено!';
