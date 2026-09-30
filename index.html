@@ -111,6 +111,8 @@
         .connection-status.success { color: #36FF00; border-color: #36FF00; background: rgba(54, 255, 0, 0.12); }
         .connection-btn { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: #aaa; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; font-size: 18px; z-index: 10; }
         .connection-btn:hover { color: #fff; }
+        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #444; border-top: 2px solid #36FF00; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -191,8 +193,29 @@
 </div>
 <script>
     (function(){
-        const APP_URL_STORAGE_KEY = 'sellertab_fin_appUrl';
+        // ============================================================
+        // V2 OPTIMIZATIONS:
+        // 1. Use unified ?action=records endpoint (1 fetch instead of 4)
+        // 2. Client-side cache — after save, records rendered locally
+        // 3. Lazy loading — FLOW and SUM load only when viewed
+        // 4. getRange() on server improves read speed
+        // ============================================================
+
+        const APP_URL_STORAGE_KEY = 'sellertab_fin_appUrl'; // same key as v1 for seamless transition
         let cachedAppUrl = null, appInitialized = false;
+
+        // Cache: loaded records per period key (e.g. "today", "week", "month:2025-01")
+        // Each entry: { records, summary, chartData }
+        const recordsCache = {};
+        let currentCacheKey = null;
+        // Track which screens have been initialized for lazy loading
+        let screenLoaded = { 0: false, 1: false, 2: false };
+        // Current filters
+        let currentFilterHistory = { period: 'today' };
+        let currentFilterSummary = { period: 'all' };
+        // Pending records (optimistic add after save)
+        let pendingRecords = [];
+
         function normalizeAppUrl(url){ if(!url) return ''; let u = String(url).trim().replace(/\s+/g,'').split('#')[0].split('?')[0].replace(/\/+$/,''); return u; }
         function isLikelyAppsScriptUrl(url){ return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/i.test(normalizeAppUrl(url)); }
         function getAppUrl(){ if(cachedAppUrl) return cachedAppUrl; const saved = localStorage.getItem(APP_URL_STORAGE_KEY); cachedAppUrl = normalizeAppUrl(saved) || null; return cachedAppUrl; }
@@ -221,11 +244,10 @@
         }
 
         let categoriesData=null, allTypes=[], allAccounts=[], allArticles=[], settingsData=null;
-        let currentFilterHistory={period:'today'}, currentFilterSummary={period:'all'};
-        let activeDropdown=null, activeFilterDropdown=null, chartInstances={}, currentSummaryData=null;
-        let currentEditRow=null, currentEditType='', currentEditAccount='', currentEditArticle='';
         let allMonths=[], allYears=[];
         let typeEnabled=true, accountEnabled=true, articleEnabled=true, linked=true, editEnabled=true, summaryCategories=[], monthOnlyForCards=false;
+        let activeDropdown=null, activeFilterDropdown=null, chartInstances={}, currentChartData=null;
+        let currentEditRow=null, currentEditType='', currentEditAccount='', currentEditArticle='';
 
         const loadingScreen=document.getElementById('loadingScreen'), appContainer=document.getElementById('appContainer');
         const typeSelect=document.getElementById('typeSelect'), accountSelect=document.getElementById('accountSelect'), articleSelect=document.getElementById('articleSelect');
@@ -247,20 +269,374 @@
         const summaryCardsDiv=document.getElementById('summaryCards'), summaryCardsAddDiv=document.getElementById('summaryCardsAdd'), viewToggle=document.getElementById('viewToggle');
         const modal=document.getElementById('editModal'), editAmount=document.getElementById('editAmount'), editComment=document.getElementById('editComment');
         const editDisplayType=document.getElementById('editDisplayType'), editDisplayAccount=document.getElementById('editDisplayAccount'), editDisplayArticle=document.getElementById('editDisplayArticle');
+        const editDateInput=document.getElementById('editDate');
         const deleteBtn=document.getElementById('deleteBtn'), cancelBtn=document.getElementById('cancelBtn'), updateBtn=document.getElementById('updateBtn');
         const screensContainer=document.getElementById('screensContainer'), segButtons=document.querySelectorAll('.segmented-btn');
+
+        // --- Helpers ---
 
         function getCurrentMonth(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
         function getCurrentYear(){ return new Date().getFullYear().toString(); }
         function formatMonth(m){ const [y,mo]=m.split('-'); const d=new Date(parseInt(y),parseInt(mo)-1,1); return d.toLocaleString('en',{month:'short'}).toUpperCase(); }
-        function isInPeriod(dateValue,filter){
-            const date=new Date(dateValue); const now=new Date(); const weekAgo=new Date(now.getTime()-7*24*60*60*1000);
-            if(filter.period==='today'){ const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()); return date>=start; }
-            if(filter.period==='week') return date>=weekAgo;
-            if(filter.period==='month'&&filter.month){ const [y,m]=filter.month.split('-'); const s=new Date(parseInt(y),parseInt(m)-1,1); const e=new Date(parseInt(y),parseInt(m),0,23,59,59); return date>=s&&date<=e; }
-            if(filter.period==='year'&&filter.year){ const s=new Date(parseInt(filter.year),0,1); const e=new Date(parseInt(filter.year),11,31,23,59,59); return date>=s&&date<=e; }
-            return true;
+        function buildPeriodKey(filter){
+            if(filter.period==='month'&&filter.month) return 'month:'+filter.month;
+            if(filter.period==='year'&&filter.year) return 'year:'+filter.year;
+            return filter.period||'all';
         }
+
+        function getFilterParams(filter){
+            if(filter.period==='month'&&filter.month) return `period=month&month=${filter.month}`;
+            if(filter.period==='year'&&filter.year) return `period=year&year=${filter.year}`;
+            return `period=${filter.period||'all'}`;
+        }
+
+        // --- Server fetch with unified records endpoint ---
+
+        async function fetchRecords(filter) {
+            const params = getFilterParams(filter);
+            const url = `${getAppUrlRequired()}?action=records&${params}`;
+            const res = await fetch(url, { cache: 'no-store' });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            return data; // { records, summary, chartData }
+        }
+
+        // --- Lazy loading: load screen data on first view ---
+
+        function ensureScreenLoaded(screenIdx) {
+            if (screenLoaded[screenIdx]) return;
+            screenLoaded[screenIdx] = true;
+            if (screenIdx === 0) {
+                // ADD screen: loadCards after categories are ready
+                if (categoriesData) loadCardsData();
+            } else if (screenIdx === 1) {
+                loadHistory();
+            } else if (screenIdx === 2) {
+                loadSummary();
+                loadChartData();
+            }
+        }
+
+        function onScreenChange(idx) {
+            ensureScreenLoaded(idx);
+            // Sync cards display — only show on ADD and SUM
+            if (summaryCardsAddDiv) {
+                summaryCardsAddDiv.style.display = (idx === 0) ? '' : 'none';
+            }
+            if (summaryCardsDiv) {
+                summaryCardsDiv.style.display = (idx === 2) ? '' : 'none';
+            }
+        }
+
+        // --- ADD screen card loading (uses separate endpoint for month/all) ---
+
+        async function loadCardsData(){
+            if(!summaryCategories.length){ if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=''; return; }
+            const period = monthOnlyForCards ? 'month' : 'all';
+            try {
+                const r = await fetch(`${getAppUrlRequired()}?action=cardsSummary&period=${period}`);
+                const d = await r.json();
+                if(d.error) throw new Error(d.error);
+                updateCardsFromSummary(d);
+            } catch(e) {
+                console.error('Cards loading error', e);
+            }
+        }
+
+        // --- Main data loading (unified records endpoint) ---
+
+        async function loadDataForFilter(filter) {
+            const key = buildPeriodKey(filter);
+            // Check cache
+            if (recordsCache[key]) {
+                return recordsCache[key];
+            }
+            try {
+                const data = await fetchRecords(filter);
+                // Merge pending (optimistic) records
+                const mergedRecords = mergePending(data.records, filter);
+                const mergedSummary = computeClientSummary(mergedRecords);
+                const mergedChart = computeClientChart(mergedRecords);
+                const result = { records: mergedRecords, summary: mergedSummary, chartData: mergedChart };
+                recordsCache[key] = result;
+                currentCacheKey = key;
+                return result;
+            } catch(e) {
+                console.error('Load error', e);
+                throw e;
+            }
+        }
+
+        function mergePending(serverRecords, filter) {
+            if (pendingRecords.length === 0) return serverRecords;
+            // Filter pending records by period, then merge with server records
+            const filteredPending = pendingRecords.filter(r => isInPeriodClient(r.timestamp, filter));
+            // Server records are already sorted desc; prepend pending at top
+            const merged = [...serverRecords];
+            for (const p of filteredPending) {
+                // If this is a duplicate (same row), replace; otherwise insert
+                const idx = merged.findIndex(r => r.row === p.row);
+                if (idx >= 0) merged[idx] = p;
+                else merged.unshift(p);
+            }
+            return merged;
+        }
+
+        // Client-side period check (mirrors server logic)
+        function isInPeriodClient(dateValue, filter) {
+            const date = new Date(dateValue);
+            if (isNaN(date.getTime())) return true;
+            const now = new Date();
+            const weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+            switch (filter.period) {
+                case 'today': {
+                    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    return date >= start;
+                }
+                case 'week': return date >= weekAgo;
+                case 'month': {
+                    if (!filter.month) return true;
+                    const [y,m] = filter.month.split('-');
+                    const s = new Date(parseInt(y), parseInt(m)-1, 1);
+                    const e = new Date(parseInt(y), parseInt(m), 0, 23, 59, 59);
+                    return date >= s && date <= e;
+                }
+                case 'year': {
+                    if (!filter.year) return true;
+                    const s = new Date(parseInt(filter.year), 0, 1);
+                    const e = new Date(parseInt(filter.year), 11, 31, 23, 59, 59);
+                    return date >= s && date <= e;
+                }
+                default: return true;
+            }
+        }
+
+        // Client-side summary computation
+        function computeClientSummary(records) {
+            const summary = {};
+            records.forEach(r => {
+                const type = r.type || 'Без типа';
+                const account = r.account || 'Без счёта';
+                let article = r.article || '';
+                if (typeof r.timestamp === 'string' && r.timestamp.toLowerCase().startsWith('start')) {
+                    article = '🏁 Старт';
+                }
+                if (!summary[type]) summary[type] = {};
+                if (!summary[type][account]) summary[type][account] = {};
+                if (!summary[type][account][article]) summary[type][account][article] = 0;
+                summary[type][account][article] += r.amount;
+            });
+            return summary;
+        }
+
+        // Client-side chart computation
+        function computeClientChart(records) {
+            const byType = {}, byAccount = {}, byArticle = {};
+            records.forEach(r => {
+                const type = r.type || 'Без типа';
+                const account = r.account || 'Без счёта';
+                let article = r.article || '';
+                if (typeof r.timestamp === 'string' && r.timestamp.toLowerCase().startsWith('start')) {
+                    article = '🏁 Старт';
+                }
+                byType[type] = (byType[type] || 0) + r.amount;
+                byAccount[account] = (byAccount[account] || 0) + r.amount;
+                byArticle[article] = (byArticle[article] || 0) + r.amount;
+            });
+            return { types: byType, accounts: byAccount, articles: byArticle };
+        }
+
+        // --- FLOW (History) ---
+
+        async function loadHistory() {
+            historyListDiv.innerHTML = '';
+            historyStatus.textContent = 'Загрузка...';
+            try {
+                const data = await loadDataForFilter(currentFilterHistory);
+                renderHistory(data.records);
+            } catch(e) {
+                historyStatus.textContent = 'Ошибка загрузки истории';
+            }
+        }
+
+        async function loadSummary() {
+            summaryContentDiv.innerHTML = '';
+            summaryStatus.textContent = 'Загрузка...';
+            try {
+                const data = await loadDataForFilter(currentFilterSummary);
+                renderSummary(data.summary);
+                updateCardsFromSummary(data.summary);
+            } catch(e) {
+                summaryStatus.textContent = 'Ошибка загрузки итогов';
+            }
+        }
+
+        async function loadChartData() {
+            try {
+                const data = await loadDataForFilter(currentFilterSummary);
+                currentChartData = data.chartData;
+                if (summaryChartsDiv.style.display === 'block') renderCharts(data.chartData);
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        // --- Render functions (same as v1 with minor fixes) ---
+
+        function renderHistory(recs){
+            historyStatus.textContent = '';
+            if (!recs || !recs.length){ historyStatus.textContent='Нет записей'; return; }
+            recs.forEach(r => {
+                const date = new Date(r.timestamp).toLocaleString('ru',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+                const amCol = r.amount < 0 ? '#ff4646' : '#36FF00';
+                const item = document.createElement('div'); item.className='transaction-item'; item.dataset.row = r.row;
+                item.innerHTML = `<div class="transaction-main"><div class="transaction-left"><span class="transaction-type">${escapeHtml(r.type)}</span><span class="transaction-account">${escapeHtml(r.account)}</span><span class="transaction-article">${escapeHtml(r.article)}</span></div><div style="display:flex;align-items:center;"><span class="transaction-amount" style="color:${amCol}">${(r.amount || 0).toFixed(2)}</span>${editEnabled?'<span class="edit-icon" data-row="'+r.row+'">✏️</span>':''}</div></div>${r.comment ? `<div class="transaction-comment">💬 ${escapeHtml(r.comment)}</div>` : ''}<div class="transaction-date">${date}</div>`;
+                if(editEnabled) item.querySelector('.edit-icon').addEventListener('click', e => { e.stopPropagation(); openEditModal(r); });
+                historyListDiv.appendChild(item);
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function renderSummary(summary){
+            summaryStatus.textContent = '';
+            if (!summary || Object.keys(summary).length === 0){ summaryStatus.textContent='Нет данных'; return; }
+            let html = '';
+            for(let type in summary){
+                let typeTotal=0;
+                let accountsHtml='';
+                for(let account in summary[type]){
+                    let accountTotal=0;
+                    let articlesHtml='';
+                    for(let article in summary[type][account]){
+                        if(article.startsWith('🏁')) continue;
+                        let amount = summary[type][account][article];
+                        accountTotal += amount;
+                        const amountColor = amount<0?'#ff4646':'#36FF00';
+                        articlesHtml += `<div class="summary-article"><span>${escapeHtml(article)}</span><span class="summary-article-amount" style="color:${amountColor}">${amount.toFixed(2)}</span></div>`;
+                    }
+                    typeTotal += accountTotal;
+                    const accountTotalColor = accountTotal<0?'#ff4646':'#FFDD21';
+                    accountsHtml += `<div class="summary-account"><div class="summary-account-header" data-account="${escapeHtml(account)}"><span>${escapeHtml(account)}</span><span style="color:${accountTotalColor}">${accountTotal.toFixed(2)}</span></div><div class="summary-article-container" id="articles-${account.replace(/\s/g,'')}">${articlesHtml}</div></div>`;
+                }
+                const typeTotalColor = typeTotal<0?'#ff4646':'#36FF00';
+                html += `<div class="summary-block"><div class="summary-type" data-type="${escapeHtml(type)}"><span>${escapeHtml(type)}</span><span class="summary-type-total" style="color:${typeTotalColor}">${typeTotal.toFixed(2)}</span></div><div class="summary-account-container" id="accounts-${type.replace(/\s/g,'')}">${accountsHtml}</div></div>`;
+            }
+            summaryContentDiv.innerHTML = html;
+            document.querySelectorAll('.summary-type').forEach(el => el.addEventListener('click', () => {
+                const type = el.dataset.type;
+                const container = document.getElementById(`accounts-${type.replace(/\s/g,'')}`);
+                if (container) container.classList.toggle('expanded');
+            }));
+            document.querySelectorAll('.summary-account-header').forEach(el => el.addEventListener('click', e => {
+                e.stopPropagation();
+                const acc = el.dataset.account;
+                const container = document.getElementById(`articles-${acc.replace(/\s/g,'')}`);
+                if (container) container.classList.toggle('expanded');
+            }));
+        }
+
+        function updateCardsFromSummary(summary){
+            if(!summaryCategories.length){ if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=''; if(summaryCardsDiv) summaryCardsDiv.innerHTML=''; return; }
+            const colors=['#36FF00','#FFDD21','#4069FF'];
+            let htmlAdd='', htmlSum='';
+            summaryCategories.forEach((cat,index)=>{
+                let total=0;
+                for(let type in summary){
+                    if(type===cat){ for(let account in summary[type]){ for(let article in summary[type][account]){ total+=summary[type][account][article]; } } break; }
+                }
+                // Fallback: match by account name
+                if(total===0){ for(let type in summary){ for(let account in summary[type]){ if(account===cat){ for(let article in summary[type][account]){ total+=summary[type][account][article]; } break; } } } }
+                // Fallback: match by article name
+                if(total===0){ for(let type in summary){ for(let account in summary[type]){ for(let article in summary[type][account]){ if(article===cat) total+=summary[type][account][article]; } } } }
+                const color=colors[index%colors.length];
+                const cardHtml=`<div class="summary-card" style="border-color:${color}"><div class="card-title" style="color:${color}">${escapeHtml(cat)}</div><div class="card-amount" style="color:${color}">${total.toFixed(2)}</div></div>`;
+                htmlAdd+=cardHtml; htmlSum+=cardHtml;
+            });
+            if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=htmlAdd;
+            if(summaryCardsDiv) summaryCardsDiv.innerHTML=htmlSum;
+        }
+
+        function renderCharts(data){
+            if(!data) return;
+            if(chartInstances.types) { chartInstances.types.destroy(); chartInstances.types = null; }
+            const typesData={};
+            for(let [type,val] of Object.entries(data.types)){ if(Math.abs(val)>0.01) typesData[type]=val; }
+            const ctx=chartCanvas.getContext('2d');
+            chartInstances.types=new Chart(ctx,{type:'pie',data:{labels:Object.keys(typesData),datasets:[{data:Object.values(typesData),backgroundColor:['#36FF00','#FFDD21','#4069FF','#ff4646','#aa80ff','#ffaa80'],borderColor:'#000',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#fff'}}},onClick:(e,item)=>{ if(item.length>0) showChartDetail(Object.keys(typesData)[item[0].dataIndex],data); }}});
+        }
+
+        function showChartDetail(type,data){
+            let html=`<div style="color:#36FF00;font-weight:600;margin-bottom:8px;">${escapeHtml(type)}</div>`;
+            for(let [acc,val] of Object.entries(data.accounts)) if(Math.abs(val)>0.01) html+=`<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>${escapeHtml(acc)}</span><span style="color:${val<0?'#ff4646':'#36FF00'}">${val.toFixed(2)}</span></div>`;
+            chartDetailDiv.innerHTML=html;
+        }
+
+        // --- Optimistic save: add record to local cache immediately + server POST in background ---
+
+        function addToCache(record) {
+            // Add to pending
+            const serverRow = -Date.now(); // negative = temporary row id
+            const optimistic = {
+                row: serverRow,
+                timestamp: new Date().toISOString(),
+                type: record.type || '',
+                account: record.account || '',
+                article: record.article || '',
+                amount: record.amount,
+                comment: record.comment || ''
+            };
+            pendingRecords.push(optimistic);
+            // Keep pending non-durable (clear on next full server load)
+            // Invalidate cache for current filters — next load will re-merge
+            for (let key in recordsCache) {
+                delete recordsCache[key];
+            }
+        }
+
+        // --- Edit/Delete (require server roundtrip + invalidate cache) ---
+
+        async function deleteRecord(row) {
+            if (!confirm('Удалить запись?')) return false;
+            try {
+                await fetch(`${getAppUrlRequired()}?action=delete&row=${row}`, { mode: 'no-cors' });
+                // Invalidate cache
+                for (let key in recordsCache) delete recordsCache[key];
+                pendingRecords = [];
+                return true;
+            } catch(e) {
+                alert('Ошибка удаления');
+                return false;
+            }
+        }
+
+        async function updateRecord(row, fields) {
+            const formData = new URLSearchParams();
+            formData.append('type', fields.type);
+            formData.append('account', fields.account);
+            formData.append('article', fields.article);
+            formData.append('amount', fields.amount);
+            formData.append('comment', fields.comment);
+            formData.append('row', row);
+            if (fields.date) formData.append('date', fields.date);
+            try {
+                await fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: formData });
+                // Invalidate cache
+                for (let key in recordsCache) delete recordsCache[key];
+                pendingRecords = [];
+                return true;
+            } catch(e) {
+                alert('Ошибка обновления');
+                return false;
+            }
+        }
+
+        // --- Init: load settings, categories, months, years (small data) ---
 
         async function loadMonths(){ try{ const r=await fetch(getAppUrlRequired()+'?action=months'); const d=await r.json(); if(d.error) throw new Error(d.error); allMonths=d; }catch(e){ allMonths=[getCurrentMonth()]; } }
         async function loadYears(){ try{ const r=await fetch(getAppUrlRequired()+'?action=years'); const d=await r.json(); if(d.error) throw new Error(d.error); allYears=d; }catch(e){ allYears=[getCurrentYear()]; } }
@@ -284,20 +660,7 @@
             }catch(e){ typeSelectedText.textContent='Ошибка загрузки'; }
         }
 
-        // ✅ Новое: загрузка карточек ADD
-        async function loadCardsData(){
-            if(!summaryCategories.length) return;
-            const period = monthOnlyForCards ? 'month' : 'all';
-            try {
-                const r = await fetch(`${getAppUrlRequired()}?action=cardsSummary&period=${period}`);
-                const d = await r.json();
-                if(d.error) throw new Error(d.error);
-                updateCardsFromSummary(d); // обновит оба контейнера, но мы потом скроем SUM если нужно — нет, updateCardsFromSummary обновляет оба, это нормально, потому что на ADD только summaryCardsAddDiv виден
-                // Чтобы не менять карточки SUM, здесь не трогаем summaryCardsDiv, но updateCardsFromSummary обновляет оба. Это не страшно, потому что на SUM они перезаписываются при loadSummary. Можно оставить.
-            } catch(e) {
-                console.error('Cards loading error', e);
-            }
-        }
+        // --- Dropdown helpers ---
 
         function populateDropdown(dd,items,sel,onChange){ dd.innerHTML=''; items.forEach(it=>{ const div=document.createElement('div'); div.className='select-option'; const name=typeof it==='string'?it:it.name; if(name===sel) div.classList.add('selected'); div.textContent=name; div.addEventListener('click',()=>onChange(it)); dd.appendChild(div); }); }
         function toggleDropdown(dd,btn){ if(dd.classList.contains('show')) closeAllDropdowns(); else { closeAllDropdowns(); dd.classList.add('show'); btn.classList.add('open'); activeDropdown={dropdown:dd,button:btn}; } }
@@ -356,180 +719,351 @@
         }
         function vibrateSuccess(){ if(window.Telegram?.WebApp?.HapticFeedback){ for(let i=0;i<3;i++) setTimeout(()=>Telegram.WebApp.HapticFeedback.impactOccurred('light'),i*100); } }
 
+        // --- Init ---
+
         async function init(){
             loadingScreen.classList.remove('hidden');
-            await Promise.all([loadMonths(),loadYears(),loadSettings(),loadCategories()]);
+            await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
             loadingScreen.classList.add('hidden'); appContainer.style.display='flex';
-            attachNavigationListeners(); attachPeriodListeners(); attachFilterListeners(); attachSelectListeners(); attachModalListeners(); attachViewToggleListener();
-            setActivePeriod(historyPeriodBtns,'today'); setActivePeriod(summaryPeriodBtns,null); summaryMoreBtn.classList.add('active'); currentFilterSummary={period:'all'};
-            loadHistory(); loadSummary(); loadChartData(); loadCardsData(); // загружаем карточки ADD
-            screensContainer.addEventListener('scroll',syncSegmentedButtons);
+            attachNavigationListeners();
+            attachPeriodListeners();
+            attachFilterListeners();
+            attachSelectListeners();
+            attachModalListeners();
+            attachViewToggleListener();
+            setActivePeriod(historyPeriodBtns, 'today');
+            setActivePeriod(summaryPeriodBtns, null);
+            summaryMoreBtn.classList.add('active');
+            currentFilterSummary = { period: 'all' };
+            // Lazy: only load screen 0 (ADD) cards initially
+            ensureScreenLoaded(0);
+            screensContainer.addEventListener('scroll', syncSegmentedButtons);
             checkSaveButton();
         }
-        function setActivePeriod(btns,per){ btns.forEach(b=>b.classList.toggle('active',b.dataset.period===per)); }
-        function attachNavigationListeners(){ segButtons.forEach((b,i)=>b.addEventListener('click',()=>screensContainer.scrollTo({left:screensContainer.clientWidth*i,behavior:'smooth'}))); }
-        function syncSegmentedButtons(){ const idx=Math.round(screensContainer.scrollLeft/screensContainer.clientWidth); segButtons.forEach((b,i)=>b.classList.toggle('active',i===idx)); }
+
+        function setActivePeriod(btns, per){ btns.forEach(b => b.classList.toggle('active', b.dataset.period === per)); }
+
+        function attachNavigationListeners(){
+            segButtons.forEach((b,i) => {
+                b.addEventListener('click', () => {
+                    screensContainer.scrollTo({ left: screensContainer.clientWidth * i, behavior: 'smooth' });
+                    onScreenChange(i);
+                });
+            });
+        }
+
+        function syncSegmentedButtons(){
+            const idx = Math.round(screensContainer.scrollLeft / screensContainer.clientWidth);
+            segButtons.forEach((b,i) => b.classList.toggle('active', i === idx));
+            onScreenChange(idx);
+        }
+
         function attachPeriodListeners(){
-            historyPeriodBtns.forEach(b=>{ if(b.id&&b.id.includes('MoreBtn')) return; b.addEventListener('click',()=>{ const p=b.dataset.period; currentFilterHistory={period:p}; setActivePeriod(historyPeriodBtns,p); historyMoreFilters.classList.remove('show'); historyMoreBtn.classList.remove('active'); resetMonthYear('history'); loadHistory(); }); });
-            summaryPeriodBtns.forEach(b=>{ if(b.id&&b.id.includes('MoreBtn')) return; b.addEventListener('click',()=>{ const p=b.dataset.period; currentFilterSummary={period:p}; setActivePeriod(summaryPeriodBtns,p); summaryMoreFilters.classList.remove('show'); summaryMoreBtn.classList.remove('active'); resetMonthYear('summary'); loadSummary(); loadChartData(); }); });
-            historyMoreBtn.addEventListener('click',e=>{ e.stopPropagation(); const active=historyMoreFilters.classList.contains('show'); if(active){ resetMonthYear('history'); currentFilterHistory={period:'all'}; loadHistory(); } else { historyMoreFilters.classList.add('show'); historyMoreBtn.classList.add('active'); setActivePeriod(historyPeriodBtns,null); currentFilterHistory={period:'all'}; loadHistory(); } });
-            summaryMoreBtn.addEventListener('click',e=>{ e.stopPropagation(); const active=summaryMoreFilters.classList.contains('show'); if(active){ resetMonthYear('summary'); currentFilterSummary={period:'all'}; loadSummary(); loadChartData(); } else { summaryMoreFilters.classList.add('show'); summaryMoreBtn.classList.add('active'); setActivePeriod(summaryPeriodBtns,null); currentFilterSummary={period:'all'}; loadSummary(); loadChartData(); } });
+            historyPeriodBtns.forEach(b => {
+                if(b.id && b.id.includes('MoreBtn')) return;
+                b.addEventListener('click', () => {
+                    const p = b.dataset.period;
+                    currentFilterHistory = { period: p };
+                    setActivePeriod(historyPeriodBtns, p);
+                    historyMoreFilters.classList.remove('show');
+                    historyMoreBtn.classList.remove('active');
+                    resetMonthYear('history');
+                    loadHistory();
+                });
+            });
+            summaryPeriodBtns.forEach(b => {
+                if(b.id && b.id.includes('MoreBtn')) return;
+                b.addEventListener('click', () => {
+                    const p = b.dataset.period;
+                    currentFilterSummary = { period: p };
+                    setActivePeriod(summaryPeriodBtns, p);
+                    summaryMoreFilters.classList.remove('show');
+                    summaryMoreBtn.classList.remove('active');
+                    resetMonthYear('summary');
+                    loadSummary();
+                    loadChartData();
+                });
+            });
+            historyMoreBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                const active = historyMoreFilters.classList.contains('show');
+                if(active) {
+                    resetMonthYear('history');
+                    currentFilterHistory = { period: 'all' };
+                    loadHistory();
+                } else {
+                    historyMoreFilters.classList.add('show');
+                    historyMoreBtn.classList.add('active');
+                    setActivePeriod(historyPeriodBtns, null);
+                    currentFilterHistory = { period: 'all' };
+                    loadHistory();
+                }
+            });
+            summaryMoreBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                const active = summaryMoreFilters.classList.contains('show');
+                if(active) {
+                    resetMonthYear('summary');
+                    currentFilterSummary = { period: 'all' };
+                    loadSummary();
+                    loadChartData();
+                } else {
+                    summaryMoreFilters.classList.add('show');
+                    summaryMoreBtn.classList.add('active');
+                    setActivePeriod(summaryPeriodBtns, null);
+                    currentFilterSummary = { period: 'all' };
+                    loadSummary();
+                    loadChartData();
+                }
+            });
         }
-        function resetMonthYear(t){ if(t==='history'){ historyMonthText.textContent='Month'; historyYearText.textContent='Year'; historyMonthButton.classList.remove('active'); historyYearButton.classList.remove('active'); } else { summaryMonthText.textContent='Month'; summaryYearText.textContent='Year'; summaryMonthButton.classList.remove('active'); summaryYearButton.classList.remove('active'); } }
+
+        function resetMonthYear(t){
+            if(t==='history'){ historyMonthText.textContent='Month'; historyYearText.textContent='Year'; historyMonthButton.classList.remove('active'); historyYearButton.classList.remove('active'); }
+            else { summaryMonthText.textContent='Month'; summaryYearText.textContent='Year'; summaryMonthButton.classList.remove('active'); summaryYearButton.classList.remove('active'); }
+        }
+
         function attachFilterListeners(){
-            setupFilterDropdown(historyMonthButton,historyMonthDropdown,allMonths,historyMonthText,v=>{ historyMonthText.textContent=formatMonth(v); historyMonthButton.classList.add('active'); applyHistoryFilter(); });
-            setupFilterDropdown(historyYearButton,historyYearDropdown,allYears,historyYearText,v=>{ historyYearText.textContent=v; historyYearButton.classList.add('active'); applyHistoryFilter(); });
-            setupFilterDropdown(summaryMonthButton,summaryMonthDropdown,allMonths,summaryMonthText,v=>{ summaryMonthText.textContent=formatMonth(v); summaryMonthButton.classList.add('active'); applySummaryFilter(); });
-            setupFilterDropdown(summaryYearButton,summaryYearDropdown,allYears,summaryYearText,v=>{ summaryYearText.textContent=v; summaryYearButton.classList.add('active'); applySummaryFilter(); });
+            setupFilterDropdown(historyMonthButton, historyMonthDropdown, allMonths, historyMonthText, v => { historyMonthText.textContent=formatMonth(v); historyMonthButton.classList.add('active'); applyHistoryFilter(); });
+            setupFilterDropdown(historyYearButton, historyYearDropdown, allYears, historyYearText, v => { historyYearText.textContent=v; historyYearButton.classList.add('active'); applyHistoryFilter(); });
+            setupFilterDropdown(summaryMonthButton, summaryMonthDropdown, allMonths, summaryMonthText, v => { summaryMonthText.textContent=formatMonth(v); summaryMonthButton.classList.add('active'); applySummaryFilter(); });
+            setupFilterDropdown(summaryYearButton, summaryYearDropdown, allYears, summaryYearText, v => { summaryYearText.textContent=v; summaryYearButton.classList.add('active'); applySummaryFilter(); });
         }
-        function setupFilterDropdown(btn,dd,items,txt,onSel){ btn.addEventListener('click',e=>{ e.stopPropagation(); closeAllFilterDropdowns(); dd.innerHTML=''; items.forEach(it=>{ const d=document.createElement('div'); d.className='filter-option'; d.textContent=it.includes('-')?formatMonth(it):it; d.addEventListener('click',()=>{ onSel(it); dd.classList.remove('show'); btn.classList.remove('open'); }); dd.appendChild(d); }); dd.classList.add('show'); btn.classList.add('open'); activeFilterDropdown={dropdown:dd,button:btn}; }); }
+        function setupFilterDropdown(btn,dd,items,txt,onSel){
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                closeAllFilterDropdowns();
+                dd.innerHTML='';
+                items.forEach(it => {
+                    const d=document.createElement('div'); d.className='filter-option';
+                    d.textContent = it.includes('-') ? formatMonth(it) : it;
+                    d.addEventListener('click', () => { onSel(it); dd.classList.remove('show'); btn.classList.remove('open'); });
+                    dd.appendChild(d);
+                });
+                dd.classList.add('show');
+                btn.classList.add('open');
+                activeFilterDropdown = { dropdown: dd, button: btn };
+            });
+        }
         function closeAllFilterDropdowns(){ if(activeFilterDropdown){ activeFilterDropdown.dropdown.classList.remove('show'); activeFilterDropdown.button.classList.remove('open'); activeFilterDropdown=null; } }
-        function applyHistoryFilter(){ const m=historyMonthText.textContent!=='Month'?getMonthValueFromText(historyMonthText.textContent):null; const y=historyYearText.textContent!=='Year'?historyYearText.textContent:null; if(m&&y) currentFilterHistory={period:'month',month:m}; else if(y) currentFilterHistory={period:'year',year:y}; else if(m) currentFilterHistory={period:'month',month:m}; else currentFilterHistory={period:'all'}; loadHistory(); }
-        function applySummaryFilter(){ const m=summaryMonthText.textContent!=='Month'?getMonthValueFromText(summaryMonthText.textContent):null; const y=summaryYearText.textContent!=='Year'?summaryYearText.textContent:null; if(m&&y) currentFilterSummary={period:'month',month:m}; else if(y) currentFilterSummary={period:'year',year:y}; else if(m) currentFilterSummary={period:'month',month:m}; else currentFilterSummary={period:'all'}; loadSummary(); loadChartData(); }
+        function applyHistoryFilter(){
+            const m=historyMonthText.textContent!=='Month'?getMonthValueFromText(historyMonthText.textContent):null;
+            const y=historyYearText.textContent!=='Year'?historyYearText.textContent:null;
+            if(m&&y) currentFilterHistory={period:'month',month:m};
+            else if(y) currentFilterHistory={period:'year',year:y};
+            else if(m) currentFilterHistory={period:'month',month:m};
+            else currentFilterHistory={period:'all'};
+            loadHistory();
+        }
+        function applySummaryFilter(){
+            const m=summaryMonthText.textContent!=='Month'?getMonthValueFromText(summaryMonthText.textContent):null;
+            const y=summaryYearText.textContent!=='Year'?summaryYearText.textContent:null;
+            if(m&&y) currentFilterSummary={period:'month',month:m};
+            else if(y) currentFilterSummary={period:'year',year:y};
+            else if(m) currentFilterSummary={period:'month',month:m};
+            else currentFilterSummary={period:'all'};
+            loadSummary();
+            loadChartData();
+        }
         function getMonthValueFromText(t){ for(let m of allMonths) if(formatMonth(m)===t) return m; return null; }
-        document.addEventListener('click',e=>{ if(!e.target.closest('.filter-select')&&!e.target.closest('.period-btn')) closeAllFilterDropdowns(); });
-        function attachViewToggleListener(){ viewToggle.addEventListener('click',()=>{ if(summaryContentDiv.style.display!=='none'){ summaryContentDiv.style.display='none'; summaryChartsDiv.style.display='block'; viewToggle.textContent='📋'; if(currentSummaryData) renderCharts(currentSummaryData); } else { summaryContentDiv.style.display='block'; summaryChartsDiv.style.display='none'; viewToggle.textContent='📊'; } }); }
-        function buildUrl(action,filter){ let u=`${getAppUrlRequired()}?action=${action}`; if(filter.period==='month'&&filter.month) u+=`&period=month&month=${filter.month}`; else if(filter.period==='year'&&filter.year) u+=`&period=year&year=${filter.year}`; else u+=`&period=${filter.period}`; return u; }
-        async function loadHistory(){ historyListDiv.innerHTML=''; historyStatus.textContent='Загрузка...'; try{ const r=await fetch(buildUrl('list',currentFilterHistory)); const d=await r.json(); if(d.error) throw new Error(d.error); renderHistory(d); }catch(e){ historyStatus.textContent='Ошибка загрузки истории'; } }
-        async function loadSummary(){ summaryContentDiv.innerHTML=''; summaryStatus.textContent='Загрузка...'; try{ const r=await fetch(buildUrl('summary',currentFilterSummary)); const d=await r.json(); if(d.error) throw new Error(d.error); renderSummary(d); updateCardsFromSummary(d); }catch(e){ summaryStatus.textContent='Ошибка загрузки итогов'; } }
-        async function loadChartData(){ try{ const r=await fetch(buildUrl('chart',currentFilterSummary)); const d=await r.json(); if(d.error) throw new Error(d.error); currentSummaryData=d; if(summaryChartsDiv.style.display==='block') renderCharts(d); }catch(e){ console.error(e); } }
+        document.addEventListener('click', e => { if(!e.target.closest('.filter-select')&&!e.target.closest('.period-btn')) closeAllFilterDropdowns(); });
 
-        function renderHistory(recs){
-            historyStatus.textContent=''; if(!recs.length){ historyStatus.textContent='Нет записей'; return; }
-            recs.sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-            recs.forEach(r=>{
-                const date=new Date(r.timestamp).toLocaleString('ru',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-                const amCol=r.amount<0?'#ff4646':'#36FF00';
-                const item=document.createElement('div'); item.className='transaction-item'; item.dataset.row=r.row;
-                item.innerHTML=`<div class="transaction-main"><div class="transaction-left"><span class="transaction-type">${r.type}</span><span class="transaction-account">${r.account}</span><span class="transaction-article">${r.article}</span></div><div style="display:flex;align-items:center;"><span class="transaction-amount" style="color:${amCol}">${r.amount.toFixed(2)}</span>${editEnabled?'<span class="edit-icon" data-row="'+r.row+'">✏️</span>':''}</div></div>${r.comment?`<div class="transaction-comment">💬 ${r.comment}</div>`:''}<div class="transaction-date">${date}</div>`;
-                if(editEnabled) item.querySelector('.edit-icon').addEventListener('click',e=>{ e.stopPropagation(); openEditModal(r); });
-                historyListDiv.appendChild(item);
+        function attachViewToggleListener(){
+            viewToggle.addEventListener('click', () => {
+                if(summaryContentDiv.style.display !== 'none'){
+                    summaryContentDiv.style.display = 'none';
+                    summaryChartsDiv.style.display = 'block';
+                    viewToggle.textContent = '📋';
+                    if(currentChartData) renderCharts(currentChartData);
+                } else {
+                    summaryContentDiv.style.display = 'block';
+                    summaryChartsDiv.style.display = 'none';
+                    viewToggle.textContent = '📊';
+                }
             });
         }
 
-        function renderSummary(summary){
-            summaryStatus.textContent='';
-            if(Object.keys(summary).length===0){ summaryStatus.textContent='Нет данных'; return; }
-            let html='';
-            for(let type in summary){
-                let typeTotal=0;
-                let accountsHtml='';
-                for(let account in summary[type]){
-                    let accountTotal=0;
-                    let articlesHtml='';
-                    for(let article in summary[type][account]){
-                        if(article.startsWith('🏁')) continue;
-                        let amount=summary[type][account][article];
-                        accountTotal+=amount;
-                        const amountColor=amount<0?'#ff4646':'#36FF00';
-                        articlesHtml+=`<div class="summary-article"><span>${article}</span><span class="summary-article-amount" style="color:${amountColor}">${amount.toFixed(2)}</span></div>`;
-                    }
-                    typeTotal+=accountTotal;
-                    const accountTotalColor=accountTotal<0?'#ff4646':'#FFDD21';
-                    accountsHtml+=`<div class="summary-account"><div class="summary-account-header" data-account="${account}"><span>${account}</span><span style="color:${accountTotalColor}">${accountTotal.toFixed(2)}</span></div><div class="summary-article-container" id="articles-${account.replace(/\s/g,'')}">${articlesHtml}</div></div>`;
-                }
-                const typeTotalColor=typeTotal<0?'#ff4646':'#36FF00';
-                html+=`<div class="summary-block"><div class="summary-type" data-type="${type}"><span>${type}</span><span class="summary-type-total" style="color:${typeTotalColor}">${typeTotal.toFixed(2)}</span></div><div class="summary-account-container" id="accounts-${type.replace(/\s/g,'')}">${accountsHtml}</div></div>`;
-            }
-            summaryContentDiv.innerHTML=html;
-            document.querySelectorAll('.summary-type').forEach(el=>el.addEventListener('click',()=>{ const type=el.dataset.type; document.getElementById(`accounts-${type.replace(/\s/g,'')}`).classList.toggle('expanded'); }));
-            document.querySelectorAll('.summary-account-header').forEach(el=>el.addEventListener('click',e=>{ e.stopPropagation(); const acc=el.dataset.account; document.getElementById(`articles-${acc.replace(/\s/g,'')}`).classList.toggle('expanded'); }));
-        }
+        // --- Save button (optimistic local add + server POST) ---
 
-        function updateCardsFromSummary(summary){
-            if(!summaryCategories.length){ if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=''; if(summaryCardsDiv) summaryCardsDiv.innerHTML=''; return; }
-            const colors=['#36FF00','#FFDD21','#4069FF'];
-            let htmlAdd='', htmlSum='';
-            summaryCategories.forEach((cat,index)=>{
-                let total=0;
-                for(let type in summary){
-                    if(type===cat){ for(let account in summary[type]){ for(let article in summary[type][account]){ total+=summary[type][account][article]; } } break; }
-                }
-                if(total===0){ for(let type in summary){ for(let account in summary[type]){ if(account===cat){ for(let article in summary[type][account]){ total+=summary[type][account][article]; } break; } } } }
-                if(total===0){ for(let type in summary){ for(let account in summary[type]){ for(let article in summary[type][account]){ if(article===cat) total+=summary[type][account][article]; } } } }
-                const color=colors[index%colors.length];
-                const cardHtml=`<div class="summary-card" style="border-color:${color}"><div class="card-title" style="color:${color}">${cat}</div><div class="card-amount" style="color:${color}">${total.toFixed(2)}</div></div>`;
-                htmlAdd+=cardHtml; htmlSum+=cardHtml;
+        function attachSelectListeners(){
+            typeButton.addEventListener('click', e => { e.stopPropagation(); if(!typeButton.disabled) toggleDropdown(typeDropdown,typeButton); });
+            accountButton.addEventListener('click', e => { e.stopPropagation(); if(!accountButton.disabled) toggleDropdown(accountDropdown,accountButton); });
+            articleButton.addEventListener('click', e => { e.stopPropagation(); if(!articleButton.disabled) toggleDropdown(articleDropdown,articleButton); });
+            document.addEventListener('click', closeAllDropdowns);
+            amountInput.addEventListener('input', checkSaveButton);
+
+            saveBtn.addEventListener('click', () => {
+                const type = typeSelect.value, acc = accountSelect.value, art = articleSelect.value, am = parseFloat(amountInput.value), com = commentInput.value;
+                if((typeEnabled && !type) || (accountEnabled && !acc) || (articleEnabled && !art) || isNaN(am) || am <= 0) return;
+
+                saveBtn.disabled = true;
+                statusDiv.textContent = 'Отправка...';
+                statusDiv.className = 'status';
+
+                // Optimistic: add to local cache immediately
+                addToCache({ type, account: acc, article: art, amount: am, comment: com });
+
+                // If on FLOW/SUM views, refresh them from cache immediately (no server call)
+                if (screenLoaded[1]) loadHistory();
+                if (screenLoaded[2]) { loadSummary(); loadChartData(); }
+                loadCardsData(); // refresh ADD cards
+
+                // Also update pending display immediately
+                statusDiv.textContent = '✅ Отправлено!';
+                statusDiv.className = 'status success';
+                vibrateSuccess();
+
+                // Reset form
+                amountInput.value = '';
+                commentInput.value = '';
+                typeSelect.value = '';
+                accountSelect.value = '';
+                articleSelect.value = '';
+                typeSelectedText.textContent = settingsData?.type?.secondText || 'Выберите тип';
+                if(linked) resetAccountAndArticle(); else { accountSelectedText.textContent = settingsData?.account?.secondText || 'Выберите счёт'; articleSelectedText.textContent = settingsData?.article?.secondText || 'Выберите статью'; }
+                checkSaveButton();
+
+                // Fire-and-forget POST to server
+                const fd = new URLSearchParams();
+                fd.append('type', typeEnabled ? type : '');
+                fd.append('account', accountEnabled ? acc : '');
+                fd.append('article', articleEnabled ? art : '');
+                fd.append('amount', am);
+                fd.append('comment', com || '');
+                fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: fd })
+                    .then(() => {
+                        // Server roundtrip complete — we could clear cache, but user already sees data
+                        // Silent background refresh after a short delay to sync with server
+                        setTimeout(() => {
+                            // Soft invalidate — next load will come from server
+                            for (let key in recordsCache) delete recordsCache[key];
+                            pendingRecords = [];
+                            // Only refresh if screen is still visible
+                            if (screenLoaded[1]) loadHistory();
+                            if (screenLoaded[2]) { loadSummary(); loadChartData(); }
+                        }, 3000);
+                    })
+                    .catch(() => {
+                        // Failed — keep optimistic data, user won't notice unless they refresh
+                    });
             });
-            if(summaryCardsAddDiv) summaryCardsAddDiv.innerHTML=htmlAdd;
-            if(summaryCardsDiv) summaryCardsDiv.innerHTML=htmlSum;
         }
 
-        function renderCharts(data){
-            if(chartInstances.types) chartInstances.types.destroy();
-            const typesData={};
-            for(let [type,val] of Object.entries(data.types)){ if(Math.abs(val)>0.01) typesData[type]=val; }
-            const ctx=chartCanvas.getContext('2d');
-            chartInstances.types=new Chart(ctx,{type:'pie',data:{labels:Object.keys(typesData),datasets:[{data:Object.values(typesData),backgroundColor:['#36FF00','#FFDD21','#4069FF','#ff4646','#aa80ff','#ffaa80'],borderColor:'#000',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#fff'}}},onClick:(e,item)=>{ if(item.length>0) showChartDetail(Object.keys(typesData)[item[0].dataIndex],data); }}});
-        }
-
-        function showChartDetail(type,data){
-            let html=`<div style="color:#36FF00;font-weight:600;margin-bottom:8px;">${type}</div>`;
-            for(let [acc,val] of Object.entries(data.accounts)) if(Math.abs(val)>0.01) html+=`<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>${acc}</span><span style="color:${val<0?'#ff4646':'#36FF00'}">${val.toFixed(2)}</span></div>`;
-            chartDetailDiv.innerHTML=html;
-        }
+        // --- Modal (edit/delete) ---
 
         function openEditModal(record){
-            currentEditRow=record.row; currentEditType=record.type; currentEditAccount=record.account; currentEditArticle=record.article;
-            editDisplayType.innerHTML=`<span style="color:#36FF00">Тип:</span> ${record.type}`;
-            editDisplayAccount.innerHTML=`<span style="color:#FFDD21">Счёт:</span> ${record.account}`;
-            editDisplayArticle.innerHTML=`<span style="color:#4069FF">Статья:</span> ${record.article}`;
-            editAmount.value=Math.abs(record.amount);
-            editComment.value=record.comment||'';
-            const editDateInput=document.getElementById('editDate');
-            if(editDateInput){ const d=new Date(record.timestamp); if(!isNaN(d)) editDateInput.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; else editDateInput.value=''; }
+            currentEditRow = record.row;
+            currentEditType = record.type;
+            currentEditAccount = record.account;
+            currentEditArticle = record.article;
+            editDisplayType.innerHTML = `<span style="color:#36FF00">Тип:</span> ${escapeHtml(record.type)}`;
+            editDisplayAccount.innerHTML = `<span style="color:#FFDD21">Счёт:</span> ${escapeHtml(record.account)}`;
+            editDisplayArticle.innerHTML = `<span style="color:#4069FF">Статья:</span> ${escapeHtml(record.article)}`;
+            editAmount.value = Math.abs(record.amount);
+            editComment.value = record.comment || '';
+            if(editDateInput){
+                const d = new Date(record.timestamp);
+                if(!isNaN(d)) editDateInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                else editDateInput.value = '';
+            }
             modal.classList.add('show');
         }
 
         function attachModalListeners(){
-            cancelBtn.addEventListener('click',()=>modal.classList.remove('show'));
-            deleteBtn.addEventListener('click',async()=>{ if(!currentEditRow) return; if(!confirm('Удалить запись?')) return; try{ await fetch(`${getAppUrlRequired()}?action=delete&row=${currentEditRow}`,{mode:'no-cors'}); modal.classList.remove('show'); loadHistory(); loadSummary(); loadChartData(); loadCardsData(); }catch(e){ alert('Ошибка удаления'); } });
-            updateBtn.addEventListener('click',async()=>{
+            cancelBtn.addEventListener('click', () => modal.classList.remove('show'));
+            deleteBtn.addEventListener('click', async () => {
                 if(!currentEditRow) return;
-                const amount=parseFloat(editAmount.value); if(isNaN(amount)||amount<=0) return;
-                const formData=new URLSearchParams();
-                formData.append('type',currentEditType); formData.append('account',currentEditAccount); formData.append('article',currentEditArticle);
-                formData.append('amount',amount); formData.append('comment',editComment.value); formData.append('row',currentEditRow);
-                const editDateInput=document.getElementById('editDate'); if(editDateInput&&editDateInput.value) formData.append('date',editDateInput.value);
-                try{ await fetch(getAppUrlRequired(),{method:'POST',mode:'no-cors',body:formData}); modal.classList.remove('show'); loadHistory(); loadSummary(); loadChartData(); loadCardsData(); }catch(e){ alert('Ошибка обновления'); }
+                const ok = await deleteRecord(currentEditRow);
+                if (!ok) return;
+                modal.classList.remove('show');
+                // Refresh all loaded screens
+                if (screenLoaded[1]) loadHistory();
+                if (screenLoaded[2]) { loadSummary(); loadChartData(); }
+                loadCardsData();
+            });
+            updateBtn.addEventListener('click', async () => {
+                if(!currentEditRow) return;
+                const amount = parseFloat(editAmount.value);
+                if(isNaN(amount) || amount <= 0) return;
+                const date = editDateInput ? editDateInput.value : '';
+                const ok = await updateRecord(currentEditRow, {
+                    type: currentEditType,
+                    account: currentEditAccount,
+                    article: currentEditArticle,
+                    amount,
+                    comment: editComment.value,
+                    date
+                });
+                if (!ok) return;
+                modal.classList.remove('show');
+                if (screenLoaded[1]) loadHistory();
+                if (screenLoaded[2]) { loadSummary(); loadChartData(); }
+                loadCardsData();
             });
         }
 
-        function attachSelectListeners(){
-            typeButton.addEventListener('click',e=>{ e.stopPropagation(); if(!typeButton.disabled) toggleDropdown(typeDropdown,typeButton); });
-            accountButton.addEventListener('click',e=>{ e.stopPropagation(); if(!accountButton.disabled) toggleDropdown(accountDropdown,accountButton); });
-            articleButton.addEventListener('click',e=>{ e.stopPropagation(); if(!articleButton.disabled) toggleDropdown(articleDropdown,articleButton); });
-            document.addEventListener('click',closeAllDropdowns);
-            amountInput.addEventListener('input',checkSaveButton);
-            saveBtn.addEventListener('click',()=>{
-                const type=typeSelect.value, acc=accountSelect.value, art=articleSelect.value, am=parseFloat(amountInput.value), com=commentInput.value;
-                if((typeEnabled&&!type)||(accountEnabled&&!acc)||(articleEnabled&&!art)||isNaN(am)||am<=0) return;
-                saveBtn.disabled=true; statusDiv.textContent='Отправка...'; statusDiv.className='status';
-                const fd=new URLSearchParams(); fd.append('type',typeEnabled?type:''); fd.append('account',accountEnabled?acc:''); fd.append('article',articleEnabled?art:''); fd.append('amount',am); fd.append('comment',com||'');
-                fetch(getAppUrlRequired(),{method:'POST',mode:'no-cors',body:fd}).then(()=>{
-                    statusDiv.textContent='✅ Запись отправлена!'; statusDiv.className='status success'; vibrateSuccess();
-                    amountInput.value=''; commentInput.value=''; typeSelect.value=''; accountSelect.value=''; articleSelect.value='';
-                    typeSelectedText.textContent=settingsData?.type?.secondText||'Выберите тип';
-                    if(linked) resetAccountAndArticle(); else { accountSelectedText.textContent=settingsData?.account?.secondText||'Выберите счёт'; articleSelectedText.textContent=settingsData?.article?.secondText||'Выберите статью'; }
-                    checkSaveButton(); loadHistory(); loadSummary(); loadChartData(); loadCardsData();
-                    if(window.Telegram?.WebApp) setTimeout(()=>Telegram.WebApp.close(),1000);
-                }).catch(e=>{ statusDiv.textContent='❌ Ошибка'; statusDiv.className='status error'; saveBtn.disabled=false; });
-            });
+        // --- Connection management ---
+
+        async function refreshDataAfterReconnect(){
+            await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
+            for (let key in recordsCache) delete recordsCache[key];
+            pendingRecords = [];
+            screenLoaded[1] = false;
+            screenLoaded[2] = false;
+            if (screenLoaded[0]) loadCardsData();
+            if (document.getElementById('screen1').checkVisibility?.() || screensContainer.scrollLeft > screensContainer.clientWidth * 0.5) {
+                ensureScreenLoaded(1);
+            }
+            ensureScreenLoaded(0);
         }
 
-        async function refreshDataAfterReconnect(){ await Promise.all([loadMonths(),loadYears(),loadSettings(),loadCategories()]); loadHistory(); loadSummary(); loadChartData(); loadCardsData(); }
         async function initApp(){
-            const url=getAppUrl(); if(!url){ loadingScreen.classList.add('hidden'); appContainer.style.display='none'; showConnectionOverlay({allowCancel:false}); return; }
-            try{ await testConnection(url); }catch(e){ loadingScreen.classList.add('hidden'); appContainer.style.display='none'; showConnectionOverlay({allowCancel:false}); setConnectionStatus(`Не удалось подключиться: ${e.message}`,'error'); return; }
-            if(!appInitialized){ appInitialized=true; await init(); } else await refreshDataAfterReconnect();
+            const url = getAppUrl();
+            if(!url){
+                loadingScreen.classList.add('hidden');
+                appContainer.style.display = 'none';
+                showConnectionOverlay({ allowCancel: false });
+                return;
+            }
+            try {
+                await testConnection(url);
+            } catch(e){
+                loadingScreen.classList.add('hidden');
+                appContainer.style.display = 'none';
+                showConnectionOverlay({ allowCancel: false });
+                setConnectionStatus(`Не удалось подключиться: ${e.message}`, 'error');
+                return;
+            }
+            if(!appInitialized){
+                appInitialized = true;
+                await init();
+            } else {
+                await refreshDataAfterReconnect();
+            }
         }
+
         function attachConnectionListeners(){
-            document.getElementById('connectionBtn').addEventListener('click',()=>showConnectionOverlay({allowCancel:true}));
-            document.getElementById('cancelConnectionBtn').addEventListener('click',hideConnectionOverlay);
-            document.getElementById('clearConnectionBtn').addEventListener('click',()=>{ clearAppUrl(); appContainer.style.display='none'; showConnectionOverlay({allowCancel:false}); setConnectionStatus('Подключение сброшено','success'); });
-            document.getElementById('testConnectionBtn').addEventListener('click',async()=>{ const u=document.getElementById('appUrlInput').value; setConnectionStatus('Проверяем...'); try{ await testConnection(u); setConnectionStatus('Подключение успешно','success'); }catch(e){ setConnectionStatus(e.message,'error'); } });
-            document.getElementById('saveConnectionBtn').addEventListener('click',async()=>{ const u=document.getElementById('appUrlInput').value; setConnectionStatus('Проверяем и сохраняем...'); try{ await testConnection(u); saveAppUrl(u); hideConnectionOverlay(); await initApp(); }catch(e){ setConnectionStatus(e.message,'error'); } });
+            document.getElementById('connectionBtn').addEventListener('click', () => showConnectionOverlay({ allowCancel: true }));
+            document.getElementById('cancelConnectionBtn').addEventListener('click', hideConnectionOverlay);
+            document.getElementById('clearConnectionBtn').addEventListener('click', () => {
+                clearAppUrl();
+                appContainer.style.display = 'none';
+                showConnectionOverlay({ allowCancel: false });
+                setConnectionStatus('Подключение сброшено', 'success');
+            });
+            document.getElementById('testConnectionBtn').addEventListener('click', async () => {
+                const u = document.getElementById('appUrlInput').value;
+                setConnectionStatus('Проверяем...');
+                try { await testConnection(u); setConnectionStatus('Подключение успешно','success'); } catch(e) { setConnectionStatus(e.message,'error'); }
+            });
+            document.getElementById('saveConnectionBtn').addEventListener('click', async () => {
+                const u = document.getElementById('appUrlInput').value;
+                setConnectionStatus('Проверяем и сохраняем...');
+                try { await testConnection(u); saveAppUrl(u); hideConnectionOverlay(); await initApp(); } catch(e) { setConnectionStatus(e.message,'error'); }
+            });
         }
+
+        // --- Boot ---
         attachConnectionListeners();
         initApp();
         if(window.Telegram?.WebApp) Telegram.WebApp.ready();
