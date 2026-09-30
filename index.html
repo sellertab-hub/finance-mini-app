@@ -821,6 +821,35 @@
             
             screensContainer.addEventListener('scroll', syncSegmentedButtons);
             checkSaveButton();
+            
+            // Start 10-second polling for auto-refresh from other users
+            startPolling();
+        }
+
+        let pollingTimer = null;
+
+        function startPolling() {
+            stopPolling();
+            pollingTimer = setInterval(async () => {
+                try {
+                    const summaryData = await fetchQuickSummary();
+                    if (summaryData && typeof summaryData === 'object') {
+                        currentSummaryFromTotal = summaryData;
+                        if (screenLoaded[0] || document.getElementById('screen0').checkVisibility?.()) {
+                            renderCardsFromTotal(summaryData);
+                        }
+                    }
+                } catch (e) {
+                    // silent — keep current data
+                }
+            }, 10000);
+        }
+
+        function stopPolling() {
+            if (pollingTimer) {
+                clearInterval(pollingTimer);
+                pollingTimer = null;
+            }
         }
 
         async function fetchQuickSummary() {
@@ -1176,6 +1205,7 @@
             document.getElementById('connectionBtn').addEventListener('click', () => showConnectionOverlay({ allowCancel: true }));
             document.getElementById('cancelConnectionBtn').addEventListener('click', hideConnectionOverlay);
             document.getElementById('clearConnectionBtn').addEventListener('click', () => {
+                stopPolling();
                 clearAppUrl();
                 appContainer.style.display = 'none';
                 showConnectionOverlay({ allowCancel: false });
