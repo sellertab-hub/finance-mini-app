@@ -827,6 +827,7 @@
         }
 
         let pollingTimer = null;
+        let lastSaveTime = 0;
 
         function startPolling() {
             stopPolling();
@@ -834,9 +835,13 @@
                 try {
                     const summaryData = await fetchQuickSummary();
                     if (summaryData && typeof summaryData === 'object') {
-                        currentSummaryFromTotal = summaryData;
+                        // Don't overwrite optimistic data if a save was just made
+                        // (polling might race with the still-in-flight POST)
+                        if (!lastSaveTime || Date.now() - lastSaveTime > 15000) {
+                            currentSummaryFromTotal = summaryData;
+                        }
                         if (screenLoaded[0] || document.getElementById('screen0').checkVisibility?.()) {
-                            renderCardsFromTotal(summaryData);
+                            renderCardsFromTotal(currentSummaryFromTotal);
                         }
                     }
                 } catch (e) {
@@ -1042,6 +1047,8 @@
                 const type = typeSelect.value, acc = accountSelect.value, art = articleSelect.value, am = parseFloat(amountInput.value), com = commentInput.value;
                 if((typeEnabled && !type) || (accountEnabled && !acc) || (articleEnabled && !art) || isNaN(am) || am <= 0) return;
 
+                lastSaveTime = Date.now(); // protect optimistic data from polling
+
                 // --- 🚀 OPTIMISTIC: mutate cache, re-render instantly ---
                 applyOptimisticSave({ type, account: acc, article: art, amount: am, comment: com });
 
@@ -1095,13 +1102,16 @@
                 fd.append('comment', com || '');
                 fetch(getAppUrlRequired(), { method: 'POST', mode: 'no-cors', body: fd })
                     .then(() => {
-                        // Background sync: 5s after POST, silently re-fetch from server
-                        // to reconcile row ids and any server-side changes
+                        // Background sync: 5s after POST was SENT, clear record cache
+                        // so next FLOW/SUM switch loads fresh data from server.
+                        // NOTE: we do NOT call loadSummary() or loadHistory() here —
+                        // they read Records directly and can race with the still-running POST.
+                        // ADD cards are reconciled via the polling timer (quickSummary).
                         setTimeout(() => {
                             for (let key in recordsCache) delete recordsCache[key];
                             pendingRecords = [];
-                            if (screenLoaded[1]) loadHistory();
-                            if (screenLoaded[2]) { loadSummary(); loadChartData(); }
+                            // Don't call loadSummary/loadHistory — they race with POST.
+                            // Don't touch currentSummaryFromTotal — polling handles it.
                         }, 5000);
                     })
                     .catch(() => { /* optimistic data stays — user sees it */ });
