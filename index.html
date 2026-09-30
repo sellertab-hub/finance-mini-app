@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Finance Mini App</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js loaded lazily on first chart view -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #000000; color: #ffffff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 8px; }
@@ -116,7 +116,7 @@
     </style>
 </head>
 <body>
-<div class="loading-screen" id="loadingScreen"><img src="logo.png" alt="Finance Logo" class="loading-logo"></div>
+<div class="loading-screen" id="loadingScreen"><svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#36FF00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="loading-logo"><path d="M2 8l9.732 4.866a2 2 0 0 0 1.536 0L22 8"/><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="12" cy="12" r="2"/></svg></div>
 <div class="connection-overlay" id="connectionOverlay" aria-hidden="true">
     <div class="connection-card">
         <div class="connection-title">Подключение</div>
@@ -128,7 +128,7 @@
     </div>
 </div>
 <div class="app-container" id="appContainer" style="display: none;">
-    <div class="logo-area"><img src="logo.png" alt="Finance Logo" class="logo-image"></div>
+    <div class="logo-area"><svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#36FF00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="logo-image"><path d="M2 8l9.732 4.866a2 2 0 0 0 1.536 0L22 8"/><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="12" cy="12" r="2"/></svg></div>
     <button class="connection-btn" id="connectionBtn" title="Настройки подключения" type="button">⚙️</button>
     <div class="segmented-control">
         <button class="segmented-btn active" data-screen="0">ADD</button>
@@ -645,11 +645,8 @@
             }
         }
 
-        // --- Init: load settings, categories, months, years (small data) ---
+        // --- Settings (no longer fetched separately, comes from bootstrap) ---
 
-        async function loadMonths(){ try{ const r=await fetch(getAppUrlRequired()+'?action=months'); const d=await r.json(); if(d.error) throw new Error(d.error); allMonths=d; }catch(e){ allMonths=[getCurrentMonth()]; } }
-        async function loadYears(){ try{ const r=await fetch(getAppUrlRequired()+'?action=years'); const d=await r.json(); if(d.error) throw new Error(d.error); allYears=d; }catch(e){ allYears=[getCurrentYear()]; } }
-        async function loadSettings(){ try{ const r=await fetch(getAppUrlRequired()+'?action=settings'); const d=await r.json(); if(d.error) throw new Error(d.error); settingsData=d; applySettings(); }catch(e){} }
         function applySettings(){
             if(!settingsData) return;
             if(settingsData.type){ typeEnabled=settingsData.type.enabled; typeContainer.style.display=typeEnabled?'block':'none'; }
@@ -659,14 +656,6 @@
             if(settingsData.editEnabled!==undefined) editEnabled=settingsData.editEnabled;
             if(settingsData.summaryCategories) summaryCategories=settingsData.summaryCategories;
             if(settingsData.monthOnlyForCards!==undefined) monthOnlyForCards=settingsData.monthOnlyForCards;
-        }
-        async function loadCategories(){
-            try{
-                const r=await fetch(getAppUrlRequired()); const d=await r.json(); if(d.error) throw new Error(d.error);
-                categoriesData=d.categories||{}; allTypes=d.allTypes||[]; allAccounts=d.allAccounts||[]; allArticles=d.allArticles||[];
-                populateTypeDropdown();
-                if(linked) resetAccountAndArticle(); else { populateAccountDropdown(allAccounts); populateArticleDropdown(allArticles); }
-            }catch(e){ typeSelectedText.textContent='Ошибка загрузки'; }
         }
 
         // --- Dropdown helpers ---
@@ -728,70 +717,134 @@
         }
         function vibrateSuccess(){ if(window.Telegram?.WebApp?.HapticFeedback){ for(let i=0;i<3;i++) setTimeout(()=>Telegram.WebApp.HapticFeedback.impactOccurred('light'),i*100); } }
 
-        // --- 🚀 FAST INIT: only fetch quickSummary + quickCategories ---
+        // --- 🚀 FAST INIT: single bootstrap call ---
+
+        // localStorage cache keys
+        const CACHE_KEYS = {
+          settings: 'fin_cache_settings',
+          months: 'fin_cache_months',
+          years: 'fin_cache_years',
+          ts: 'fin_cache_ts'
+        };
+        const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+
+        function loadCache(key) {
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return null;
+            return JSON.parse(raw);
+          } catch(e) { return null; }
+        }
+
+        function saveCache(key, data) {
+          try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+        }
+
+        function getCachedSettings() {
+          const ts = loadCache(CACHE_KEYS.ts);
+          if (ts && Date.now() - ts < CACHE_TTL) return loadCache(CACHE_KEYS.settings);
+          return null;
+        }
+
+        function getCachedMonths() {
+          const ts = loadCache(CACHE_KEYS.ts);
+          if (ts && Date.now() - ts < CACHE_TTL) return loadCache(CACHE_KEYS.months);
+          return null;
+        }
+
+        function getCachedYears() {
+          const ts = loadCache(CACHE_KEYS.ts);
+          if (ts && Date.now() - ts < CACHE_TTL) return loadCache(CACHE_KEYS.years);
+          return null;
+        }
+
+        function setCacheAll(settings, months, years) {
+          const now = Date.now();
+          saveCache(CACHE_KEYS.ts, now);
+          saveCache(CACHE_KEYS.settings, settings);
+          saveCache(CACHE_KEYS.months, months);
+          saveCache(CACHE_KEYS.years, years);
+        }
+
+        // Lazy-load Chart.js on first chart view
+        let chartJsLoaded = false;
+        function loadChartJs() {
+          if (chartJsLoaded) return Promise.resolve();
+          chartJsLoaded = true;
+          return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.body.appendChild(s);
+          });
+        }
 
         async function init() {
             loadingScreen.classList.remove('hidden');
             
-            // Parallel fetch: 2 single-cell reads + settings (small sheet) — all fast
-            const [summaryData, catData] = await Promise.all([
-                fetchQuickSummary().catch(() => null),
-                fetchQuickCategories().catch(() => null)
-            ]);
+            // Try cached settings/months/years first
+            const cachedSettings = getCachedSettings();
+            const cachedMonths = getCachedMonths();
+            const cachedYears = getCachedYears();
             
-            // Apply categories from total!A2 (no server-side Categories read needed)
-            if (catData && catData.links) {
-                categoriesData = {};
-                allTypes = catData.allTypes || [];
-                allAccounts = catData.allAccounts || [];
-                allArticles = catData.allArticles || [];
+            if (cachedSettings) {
+              settingsData = cachedSettings;
+              applySettings();
+            }
+            if (cachedMonths) allMonths = cachedMonths;
+            if (cachedYears) allYears = cachedYears;
+            
+            // Single bootstrap call — replaces 5 separate requests
+            let summaryData = null;
+            try {
+                const bootData = await fetchBootstrap();
                 
-                catData.links.forEach(([type, account, article]) => {
-                    if (!categoriesData[type]) categoriesData[type] = {};
-                    if (!categoriesData[type][account]) categoriesData[type][account] = [];
-                    if (!categoriesData[type][account].find(a => a.name === article)) {
-                        categoriesData[type][account].push({ name: article });
-                    }
-                });
-                
-                populateTypeDropdown();
-                if (linked) resetAccountAndArticle();
-                else { populateAccountDropdown(allAccounts); populateArticleDropdown(allArticles); }
-            } else {
-                // Fallback: load from server the old way
-                try {
-                    const r = await fetch(getAppUrlRequired()); 
-                    const d = await r.json();
-                    if (d.error) throw new Error(d.error);
-                    categoriesData = d.categories || {};
-                    allTypes = d.allTypes || [];
-                    allAccounts = d.allAccounts || [];
-                    allArticles = d.allArticles || [];
-                    populateTypeDropdown();
-                    if (linked) resetAccountAndArticle();
-                    else { populateAccountDropdown(allAccounts); populateArticleDropdown(allArticles); }
-                } catch(e) {
-                    typeSelectedText.textContent = 'Ошибка загрузки';
+                // Apply categories
+                if (bootData.categories && bootData.categories.links) {
+                    categoriesData = {};
+                    allTypes = bootData.allTypes || [];
+                    allAccounts = bootData.allAccounts || [];
+                    allArticles = bootData.allArticles || [];
+                    
+                    bootData.categories.links.forEach(([type, account, article]) => {
+                        if (!categoriesData[type]) categoriesData[type] = {};
+                        if (!categoriesData[type][account]) categoriesData[type][account] = [];
+                        if (!categoriesData[type][account].find(a => a.name === article)) {
+                            categoriesData[type][account].push({ name: article });
+                        }
+                    });
+                } else {
+                    // Fallback from old format
+                    categoriesData = bootData.categories || {};
+                    allTypes = bootData.allTypes || [];
+                    allAccounts = bootData.allAccounts || [];
+                    allArticles = bootData.allArticles || [];
                 }
+                
+                // Summary
+                summaryData = bootData.summary || null;
+                if (summaryData) currentSummaryFromTotal = summaryData;
+                
+                // Settings (from server — fresher than cache)
+                if (bootData.settings) {
+                    settingsData = bootData.settings;
+                    applySettings();
+                }
+                
+                // Months & Years
+                if (bootData.months) allMonths = bootData.months;
+                if (bootData.years) allYears = bootData.years;
+                
+                // Update localStorage cache
+                setCacheAll(settingsData || bootData.settings, allMonths, allYears);
+                
+            } catch(e) {
+                console.error('Bootstrap error, using cache fallback', e);
+                // If bootstrap failed but we have cached categories? Unlikely but try
             }
             
-            // Pre-seed the cache with summary data from total!A1
-            if (summaryData && typeof summaryData === 'object') {
-                for (let key in recordsCache) delete recordsCache[key];
-                currentSummaryFromTotal = summaryData;
-            }
-            
-            // Load settings (needed for summaryCategories) + months + years
-            // These are all small sheets — still fast
-            await Promise.all([
-                loadSettings(),
-                loadMonths().catch(() => {}),
-                loadYears().catch(() => {})
-            ]);
-            
-            // Apply settings now that they're loaded
-            applySettings();
-            // Re-populate dropdowns with correct placeholder texts from settings
+            // Build dropdowns now that we have categories + settings
             if (categoriesData) {
                 populateTypeDropdown();
                 if (linked) resetAccountAndArticle();
@@ -813,17 +866,24 @@
             summaryMoreBtn.classList.add('active');
             currentFilterSummary = { period: 'all' };
             
-            // Show ADD screen cards from total!A1 data — now summaryCategories is ready
+            // Show ADD screen cards from summary data
             renderCardsFromTotal(summaryData);
             
-            // Lazy: cards loaded, rest loads on screen switch
+            // Lazy: rest loads on screen switch
             screenLoaded[0] = true;
             
             screensContainer.addEventListener('scroll', syncSegmentedButtons);
             checkSaveButton();
             
-            // Start 10-second polling for auto-refresh from other users
+            // Start 10-second polling
             startPolling();
+        }
+
+        async function fetchBootstrap() {
+            const r = await fetch(`${getAppUrlRequired()}?action=bootstrap`, { cache: 'no-store' });
+            const data = await r.json();
+            if (data.error) throw new Error(data.error);
+            return data;
         }
 
         let pollingTimer = null;
@@ -862,13 +922,6 @@
             const data = await r.json();
             if (data.error) throw new Error(data.error);
             return data; // plain object like {BYN: 500, USD: 0, EUR: 0}
-        }
-
-        async function fetchQuickCategories() {
-            const r = await fetch(`${getAppUrlRequired()}?action=quickCategories`, { cache: 'no-store' });
-            const data = await r.json();
-            if (data.error) throw new Error(data.error);
-            return data; // { allTypes, allAccounts, allArticles, links }
         }
 
         let currentSummaryFromTotal = null;
@@ -1020,11 +1073,13 @@
         document.addEventListener('click', e => { if(!e.target.closest('.filter-select')&&!e.target.closest('.period-btn')) closeAllFilterDropdowns(); });
 
         function attachViewToggleListener(){
-            viewToggle.addEventListener('click', () => {
+            viewToggle.addEventListener('click', async () => {
                 if(summaryContentDiv.style.display !== 'none'){
                     summaryContentDiv.style.display = 'none';
                     summaryChartsDiv.style.display = 'block';
                     viewToggle.textContent = '📋';
+                    // Lazy load Chart.js if not loaded yet
+                    await loadChartJs();
                     if(currentChartData) renderCharts(currentChartData);
                 } else {
                     summaryContentDiv.style.display = 'block';
@@ -1174,7 +1229,31 @@
         // --- Connection management ---
 
         async function refreshDataAfterReconnect(){
-            await Promise.all([loadMonths(), loadYears(), loadSettings(), loadCategories()]);
+            // Re-fetch all data via bootstrap
+            try {
+                const bootData = await fetchBootstrap();
+                if (bootData.settings) { settingsData = bootData.settings; applySettings(); }
+                if (bootData.months) allMonths = bootData.months;
+                if (bootData.years) allYears = bootData.years;
+                if (bootData.summary) currentSummaryFromTotal = bootData.summary;
+                if (bootData.categories && bootData.categories.links) {
+                    categoriesData = {};
+                    allTypes = bootData.allTypes || [];
+                    allAccounts = bootData.allAccounts || [];
+                    allArticles = bootData.allArticles || [];
+                    bootData.categories.links.forEach(([type, account, article]) => {
+                        if (!categoriesData[type]) categoriesData[type] = {};
+                        if (!categoriesData[type][account]) categoriesData[type][account] = [];
+                        if (!categoriesData[type][account].find(a => a.name === article)) {
+                            categoriesData[type][account].push({ name: article });
+                        }
+                    });
+                    populateTypeDropdown();
+                    if (linked) resetAccountAndArticle();
+                    else { populateAccountDropdown(allAccounts); populateArticleDropdown(allArticles); }
+                }
+                setCacheAll(settingsData, allMonths, allYears);
+            } catch(e) {}
             for (let key in recordsCache) delete recordsCache[key];
             pendingRecords = [];
             screenLoaded[1] = false;
